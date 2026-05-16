@@ -8,12 +8,13 @@ Work **one task at a time**. Update `docs/BUILD_PROGRESS.md` after each.
 - [x] Docs + Cursor rules
 - [x] Types + lib placeholders
 
-## Phase 1 — App shell
+## Phase 1 — App shell ✅
 
-- [ ] `npx create-next-app@latest` (App Router, TS, Tailwind, ESLint)
-- [ ] Install `framer-motion`, `recharts`, `lucide-react`
-- [ ] Dark theme + global layout
-- [ ] `.env.example` for API keys
+- [x] Next.js App Router setup (manual init — preserved existing folders)
+- [x] Install `framer-motion`, `recharts`, `lucide-react`, `clsx`, `tailwind-merge`
+- [x] Dark theme + global layout + navigation stubs
+- [x] `.env.example` for API keys
+- [x] README + minimal home page
 
 ## Phase 2 — Demo state & engines
 

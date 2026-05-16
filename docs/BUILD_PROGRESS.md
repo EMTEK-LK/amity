@@ -4,8 +4,8 @@
 
 ## Current Status
 
-**Phase:** Foundation  
-**Overall:** Project scaffold complete — ready for Next.js app shell
+**Phase:** App shell  
+**Overall:** App shell ready — runnable Next.js project with dark-first layout and navigation stubs
 
 ## Completed Tasks
 
@@ -14,44 +14,46 @@
 - [x] Cursor rules (`.cursor/rules/amity.mdc`)
 - [x] TypeScript type placeholders (`types/`)
 - [x] Library module placeholders (`lib/`)
-- [x] Route and API directory placeholders (`.gitkeep` only — no pages or API logic yet)
+- [x] Next.js app shell initialized (`package.json`, `tsconfig`, Tailwind v4, ESLint)
+- [x] Dependencies installed (framer-motion, recharts, lucide-react, clsx, tailwind-merge)
+- [x] Base layout created (`AppShell`, `Header`, `Navigation`)
+- [x] Minimal home page created (`app/page.tsx`)
+- [x] Route placeholders for nav targets (dashboard, trigger-portal, recovery-room, summary, crisis)
+- [x] Environment example created (`.env.example`)
+- [x] README updated with setup instructions
 
 ## Current Task
 
-**None** — foundation step complete. Awaiting next instruction.
+**None** — Step 2 complete. Ready for Step 3.
 
 ## Next Task
 
-**Step 2: Next.js app shell**
+**Step 3: Design system and reusable UI components**
 
-1. Initialize Next.js (App Router, TypeScript, Tailwind, ESLint)
-2. Add dependencies: `framer-motion`, `recharts`, `lucide-react`
-3. Configure dark-first theme tokens in `tailwind.config`
-4. Create root `app/layout.tsx` and minimal `app/page.tsx` (redirect or “coming soon” — not full landing)
-5. Add `components/layout/` shell (header, nav stubs)
-6. Update this file
+1. `components/ui/` — Button, Card, Badge, Progress, Skeleton
+2. Align tokens with `docs/UI_PLAN.md`
+3. Update this file
 
 ## Issues / Blockers
 
-| Issue | Status | Notes |
-|-------|--------|-------|
-| No `package.json` yet | Expected | Intentional for foundation-only step |
-| API keys not configured | Pending | `.env.example` in Step 2+ |
+None.
 
 ## Testing Status
 
-| Area | Status |
-|------|--------|
-| Unit tests | Not started |
-| Manual smoke | Not started |
-| Mobile layout | Not started |
+| Check | Status |
+|-------|--------|
+| `npm install` | Pass |
+| `npm run dev` | Pass (starts on port 3000) |
+| `npm run lint` | Pass (warnings only in lib placeholders) |
+| `npm run build` | Pass |
+| Mobile layout (home + nav) | Manual check recommended at 375px width |
 
 ## Notes
 
-- Do **not** implement Gemini, ElevenLabs, or Beyond Presence logic until orchestration layer exists.
-- Trigger Portal is the hero demo screen — prioritize after demo store + engines.
-- All employee session content stays private; dashboard is aggregates only.
+- `create-next-app` could not run in non-empty folder — Next.js was configured manually to preserve existing structure.
+- API route folders retain `.gitkeep` until route handlers are added in Step 9.
+- Do **not** implement Gemini, ElevenLabs, or Beyond Presence until orchestration layer exists.
 
 ---
 
-*Last updated: foundation step (2026-05-16)*
+*Last updated: Step 2 — Next.js app shell (2026-05-16)*
