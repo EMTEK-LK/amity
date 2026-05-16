@@ -1,10 +1,5 @@
-import { RoutePlaceholder } from '@/components/layout/RoutePlaceholder';
+import { redirect } from 'next/navigation';
 
-export default function CrisisPage() {
-  return (
-    <RoutePlaceholder
-      title="Crisis Safety Mode"
-      description="Escalation flow for immediate danger signals — stops coaching and bridges to human support."
-    />
-  );
+export default function LegacyCrisisPage() {
+  redirect('/user/crisis');
 }

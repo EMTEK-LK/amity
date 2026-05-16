@@ -3,8 +3,10 @@
 ## Setup
 
 - Open app on phone or laptop; dark mode
-- Operator has Trigger Portal ready
-- Optional: second screen for company dashboard
+- Header **account dropdown** set to **Sarah Perera · Employee** — Trigger Demo is the employee primary CTA (`/user/trigger-demo`)
+- Use the account dropdown to switch to **Admin User · Company Admin** for the company dashboard act (`/admin/dashboard`)
+- Note: the account dropdown is demo-only (no real sign-in); role persists in `localStorage`
+- On mobile, the account selector and nav live in the left-side hamburger drawer (slides left → right)
 
 ## Act 1 — Stable baseline (30s)
 

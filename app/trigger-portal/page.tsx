@@ -1,10 +1,5 @@
-import { RoutePlaceholder } from '@/components/layout/RoutePlaceholder';
+import { redirect } from 'next/navigation';
 
-export default function TriggerPortalPage() {
-  return (
-    <RoutePlaceholder
-      title="Trigger Simulation Portal"
-      description="Demo operator screen for simulating workplace stress triggers, wellness vitals, and risk engine decisions."
-    />
-  );
+export default function LegacyTriggerPortalPage() {
+  redirect('/user/trigger-demo');
 }

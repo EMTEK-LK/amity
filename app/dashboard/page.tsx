@@ -1,10 +1,5 @@
-import { RoutePlaceholder } from '@/components/layout/RoutePlaceholder';
+import { redirect } from 'next/navigation';
 
-export default function DashboardPage() {
-  return (
-    <RoutePlaceholder
-      title="Company Dashboard"
-      description="Privacy-safe anonymous analytics for leadership — session counts, stress trends, and trigger categories. No private transcripts."
-    />
-  );
+export default function LegacyDashboardPage() {
+  redirect('/admin/dashboard');
 }

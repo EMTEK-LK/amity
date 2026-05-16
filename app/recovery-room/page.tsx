@@ -1,10 +1,5 @@
-import { RoutePlaceholder } from '@/components/layout/RoutePlaceholder';
+import { redirect } from 'next/navigation';
 
-export default function RecoveryRoomPage() {
-  return (
-    <RoutePlaceholder
-      title="Recovery Room"
-      description="Private AI video recovery session with Beyond Presence, Gemini support, and ElevenLabs voice."
-    />
-  );
+export default function LegacyRecoveryRoomPage() {
+  redirect('/user/recovery');
 }

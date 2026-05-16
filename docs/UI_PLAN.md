@@ -16,16 +16,33 @@
 - Framer Motion: subtle enter transitions, pulse on risk change
 - Lucide icons throughout
 
-## Routes
+## Routes (role-based)
 
-| Route | Purpose |
-|-------|---------|
-| `/` | Entry / role picker or redirect to portal |
-| `/trigger-portal` | **Main demo** — triggers, twin, risk, timeline |
-| `/recovery-room` | Beyond Presence session |
-| `/summary` | Before/after recovery |
-| `/dashboard` | Company anonymous analytics |
-| `/crisis` | Crisis safety mode UI |
+| Route | Role | Purpose |
+|-------|------|---------|
+| `/` | both | Role split entry — Admin vs Employee experience |
+| `/admin/dashboard` | admin | Aggregated wellbeing KPIs |
+| `/admin/employees` | admin | High-level status only |
+| `/admin/analytics` | admin | Anonymized analytics |
+| `/admin/summary` | admin | Company recap |
+| `/admin/settings` | admin | Company / privacy / escalation / integration settings |
+| `/user/dashboard` | employee | Personal wellbeing state |
+| `/user/trigger-demo` | employee | **Main demo** — triggers, vitals, risk |
+| `/user/recovery` | employee | Beyond Presence recovery session |
+| `/user/summary` | employee | Private before/after recovery |
+| `/user/crisis` | employee | Crisis safety mode UI |
+| `/user/profile` | employee | Personal details + preferences |
+| `/user/settings` | employee | Personal preferences |
+
+Legacy routes (`/dashboard`, `/trigger-portal`, `/recovery-room`, `/crisis`) redirect into the new structure; `/summary` offers both summaries.
+
+## Navigation behavior
+
+- **One account dropdown** (identity name + role + `ChevronDown`) is the only role control — no separate Admin/Employee buttons, no duplicate role chips.
+- **Desktop:** `Amity | role nav | [Account ▾] [Theme]`. Admin has **no primary CTA** (Dashboard is in nav). Employee has a single **Trigger Demo** primary CTA; Trigger Demo is **not** a nav item.
+- **Mobile:** hamburger on the **left** + compact logo; theme toggle + compact profile icon on the right. Drawer **slides left → right** with brand, close, role/profile summary, account/role selector, role nav (active highlight), primary action (employee only), privacy footer. No duplicated desktop nav. Touch targets ≥ 44px; closes on item tap, `Esc`, or backdrop.
+- Home is **role-aware**: admin = company overview (Open Company Dashboard); employee = personal recovery (Start Trigger Demo / Open My Dashboard). Employee home never promotes the admin panel.
+- `/admin` while employee-selected → polished "switch to Company Admin" demo notice (not real auth).
 
 ## Trigger Portal (hero screen)
 

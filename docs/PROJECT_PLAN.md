@@ -55,9 +55,23 @@ Trigger Portal
 9. **Summary + analytics** — before/after + company dashboard
 10. **Crisis mode** — escalation UI and handoff simulation
 
+## Role-Based Architecture
+
+Amity has two separated experiences (demo role switcher, no real auth — persisted in `localStorage` as `amity-role`):
+
+- **Company Admin** (`/admin/*`) — aggregated, privacy-safe analytics, employee status overview, escalation/integration settings. Never private content.
+- **Employee** (`/user/*`) — personal wellbeing space: recovery, trigger demo, summary, crisis support, profile.
+
+The **Trigger Demo is employee-side only** and is the employee's **single primary action** (a CTA, not a nav item) — absent from admin navigation entirely. A **single account dropdown** in the header switches roles; admin has no primary CTA (Dashboard is in nav). Home is role-aware. Hardcoded identities and role-aware navigation config live in `lib/demo-identities.ts` and `lib/navigation.ts`.
+
+## Future Video / Audio Crisis Detection (planned)
+
+During a Beyond Presence recovery call, Amity will receive transcript, emotional cues, and session signals. On detected self-harm intent, crisis language, unsafe behavior, severe distress, or violence risk → Crisis Safety Mode activates automatically: coaching stops, live human handoff begins, emergency options appear, user stays engaged until handoff. Today this is simulated via the Trigger Demo and user messages.
+
 ## Demo Persona
 
-- **Employee:** Sarah Chen, stable baseline → triggered by demo operator → recovery → calmer state
+- **Employee:** Sarah Perera (`EMP-001`), stable baseline → triggered via the employee Trigger Demo → recovery → calmer state
+- **Admin:** Admin User (`ADMIN-001`), company-level privacy-safe view only
 
 ## Privacy Principles
 

@@ -1,37 +1,137 @@
 @import 'tailwindcss';
 
-@theme {
-  --color-amity-bg: #070b12;
-  --color-amity-surface: #0f1623;
-  --color-amity-card: #141c2b;
-  --color-amity-border: #243044;
-  --color-amity-muted: #8b9cb3;
-  --color-amity-text: #e8edf5;
-  --color-amity-accent: #5b8def;
-  --color-amity-accent-soft: #3d4f6f;
+/* ─── Light theme (default) ─── */
+:root,
+[data-theme='light'] {
+  --amity-bg: #f6fbff;
+  --amity-bg-subtle: #eaf5ff;
+  --amity-surface: #ffffff;
+  --amity-surface-elevated: #ffffff;
+  --amity-card: #ffffff;
+  --amity-border: #d9e8f5;
+  --amity-text: #0b1b2b;
+  --amity-text-muted: #5e6b7a;
+  --amity-primary: #4aa3ff;
+  --amity-primary-hover: #3b93ef;
+  --amity-primary-foreground: #ffffff;
+  --amity-primary-muted: rgb(74 163 255 / 0.12);
+  --amity-ring: #4aa3ff;
+  --amity-success: #22a06b;
+  --amity-success-muted: rgb(34 160 107 / 0.12);
+  --amity-warning: #c9820a;
+  --amity-warning-muted: rgb(201 130 10 / 0.12);
+  --amity-danger: #d64545;
+  --amity-danger-muted: rgb(214 69 69 / 0.12);
+  --amity-info: #4aa3ff;
+  --amity-info-muted: rgb(74 163 255 / 0.12);
+  --amity-shadow: 0 1px 2px rgb(11 27 43 / 0.04), 0 8px 24px rgb(74 163 255 / 0.06);
+  --amity-shadow-elevated: 0 4px 6px rgb(11 27 43 / 0.04), 0 16px 40px rgb(74 163 255 / 0.1);
+  --amity-glow: rgb(74 163 255 / 0.15);
+  --amity-overlay: rgb(11 27 43 / 0.4);
+  --amity-scrollbar: #c5d9eb;
+  --amity-selection: rgb(74 163 255 / 0.25);
+}
+
+/* ─── Dark theme ─── */
+[data-theme='dark'] {
+  --amity-bg: #07111f;
+  --amity-bg-subtle: #081421;
+  --amity-surface: #0e1b2c;
+  --amity-surface-elevated: #10243a;
+  --amity-card: #10243a;
+  --amity-border: #1e3854;
+  --amity-text: #f4f8ff;
+  --amity-text-muted: #9fb2c8;
+  --amity-primary: #62b6ff;
+  --amity-primary-hover: #7ac4ff;
+  --amity-primary-foreground: #07111f;
+  --amity-primary-muted: rgb(98 182 255 / 0.14);
+  --amity-ring: #62b6ff;
+  --amity-success: #3dd68c;
+  --amity-success-muted: rgb(61 214 140 / 0.14);
+  --amity-warning: #f5b84a;
+  --amity-warning-muted: rgb(245 184 74 / 0.14);
+  --amity-danger: #ff7b7b;
+  --amity-danger-muted: rgb(255 123 123 / 0.14);
+  --amity-info: #62b6ff;
+  --amity-info-muted: rgb(98 182 255 / 0.14);
+  --amity-shadow: 0 1px 2px rgb(0 0 0 / 0.2), 0 8px 24px rgb(0 0 0 / 0.25);
+  --amity-shadow-elevated: 0 4px 6px rgb(0 0 0 / 0.2), 0 20px 48px rgb(98 182 255 / 0.08);
+  --amity-glow: rgb(98 182 255 / 0.12);
+  --amity-overlay: rgb(0 0 0 / 0.6);
+  --amity-scrollbar: #2a4562;
+  --amity-selection: rgb(98 182 255 / 0.3);
+}
+
+@theme inline {
   --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
     Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --color-amity-bg: var(--amity-bg);
+  --color-amity-bg-subtle: var(--amity-bg-subtle);
+  --color-amity-surface: var(--amity-surface);
+  --color-amity-surface-elevated: var(--amity-surface-elevated);
+  --color-amity-card: var(--amity-card);
+  --color-amity-border: var(--amity-border);
+  --color-amity-text: var(--amity-text);
+  --color-amity-text-muted: var(--amity-text-muted);
+  --color-amity-primary: var(--amity-primary);
+  --color-amity-primary-foreground: var(--amity-primary-foreground);
 }
 
 @layer base {
   *,
   *::before,
   *::after {
-    border-color: var(--color-amity-border);
+    border-color: var(--amity-border);
   }
 
   html {
     -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
   body {
     @apply min-h-dvh antialiased;
     font-family: var(--font-sans);
-    background-color: var(--color-amity-bg);
-    color: var(--color-amity-text);
-    background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(91 141 239 / 0.12), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 0%, rgb(61 79 111 / 0.08), transparent);
+    background-color: var(--amity-bg);
+    color: var(--amity-text);
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  [data-theme='light'] body {
+    background-image: radial-gradient(
+      ellipse 90% 60% at 50% -10%,
+      var(--amity-glow),
+      transparent 70%
+    );
+  }
+
+  [data-theme='dark'] body {
+    background-image: radial-gradient(
+      ellipse 80% 50% at 50% -20%,
+      var(--amity-glow),
+      transparent 65%
+    );
+  }
+
+  ::selection {
+    background-color: var(--amity-selection);
   }
 
   a {
@@ -39,7 +139,24 @@
   }
 
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-[var(--color-amity-accent)];
+    outline: 2px solid var(--amity-ring);
+    outline-offset: 2px;
+  }
+
+  /* Scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--amity-scrollbar) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--amity-scrollbar);
+    border-radius: 9999px;
   }
 }
 
@@ -48,12 +165,27 @@
     @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
   }
 
-  .amity-card {
-    @apply rounded-2xl border bg-[var(--color-amity-card)]/90 p-5 shadow-sm backdrop-blur-sm sm:p-6;
-    border-color: color-mix(in srgb, var(--color-amity-border) 80%, transparent);
+  .amity-container-narrow {
+    @apply mx-auto w-full max-w-3xl px-4 sm:px-6;
   }
 
-  .amity-muted {
-    color: var(--color-amity-muted);
+  .amity-surface {
+    background-color: var(--amity-surface);
+    border: 1px solid var(--amity-border);
+    box-shadow: var(--amity-shadow);
+  }
+
+  .amity-card-surface {
+    background-color: var(--amity-card);
+    border: 1px solid var(--amity-border);
+    box-shadow: var(--amity-shadow);
+  }
+
+  .text-amity-muted {
+    color: var(--amity-text-muted);
+  }
+
+  .text-amity-primary {
+    color: var(--amity-primary);
   }
 }

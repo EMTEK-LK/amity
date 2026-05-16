@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { AppShell } from '@/components/layout/AppShell';
+import { ThemeScript } from '@/components/layout/ThemeScript';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,7 +14,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body className="min-h-dvh antialiased">
         <AppShell>{children}</AppShell>
       </body>

@@ -67,6 +67,22 @@ BEYOND_PRESENCE_AGENT_ID=
 - Crisis path bypasses normal coaching endpoints behavior
 - Rate limiting optional for demo (Vercel edge config later)
 
+## Role & Identity (demo)
+
+- Identities hardcoded in `lib/demo-identities.ts` (`DemoAdmin` `ADMIN-001`, `DemoEmployee` `EMP-001`); no auth endpoints in the buildathon.
+- Role (`admin` \| `employee`) is client state persisted in `localStorage` (`amity-role`) via `RoleProvider`; switched through a single account dropdown. Role-aware nav config: `lib/navigation.ts` (`getRoleNavigation`); identities: `getDemoIdentityByRole`.
+- `/admin/*` is wrapped by a client demo gate (`app/admin/layout.tsx`) that prompts a role switch when the employee role is active — placeholder for future server-side authorization.
+- **Privacy boundary:** `GET /api/analytics` and any admin-facing endpoint return aggregates only — never transcripts, personal confessions, medical labels, or crisis messages. Employee-private fields (e.g. `agentSummaryPrivate`) are excluded from admin responses.
+
+## Service Areas (architecture)
+
+Frontend: admin experience · employee experience · shared shell · shared design system.
+Backend/service (planned): demo identity store · role/session state · trigger service · signal engine · risk engine · recovery session service · BP session adapter · Gemini agent service · ElevenLabs voice service · safety classifier · crisis escalation service · analytics service.
+
+## Future Video / Audio Crisis Detection (planned)
+
+A future session-analysis service consumes BP transcript/emotional cues/session signals. On crisis signal → calls the crisis escalation service, bypasses normal `agent` coaching, returns emergency options + handoff state, and keeps the user engaged until handoff. Not implemented in the buildathon — simulated via trigger demo / user messages.
+
 ## Implementation Order
 
 1. `triggers` + `employees` (demo store wired)
@@ -74,3 +90,4 @@ BEYOND_PRESENCE_AGENT_ID=
 3. `voice` (ElevenLabs)
 4. `recovery-sessions` (Beyond Presence config)
 5. `analytics` + `crisis`
+6. session-analysis service (future video/audio crisis detection)

@@ -16,7 +16,34 @@ Work **one task at a time**. Update `docs/BUILD_PROGRESS.md` after each.
 - [x] `.env.example` for API keys
 - [x] README + minimal home page
 
-## Phase 2 — Demo state & engines
+## Phase 2 — Design system ✅
+
+- [x] Light/dark theme CSS variables + toggle
+- [x] Reusable UI components (Button, Card, Badge, etc.)
+- [x] Mobile-first header/navigation
+- [x] Professional placeholder pages
+
+## Phase 2.5 — Role-based architecture ✅
+
+- [x] Hardcoded demo identities (`lib/demo-identities.ts`) + `types/identity.ts`, `types/navigation.ts`
+- [x] `RoleProvider` + `RoleSwitcher` (localStorage, no auth)
+- [x] Admin (`/admin/*`) and employee (`/user/*`) route structure
+- [x] Role-based desktop nav + left-side mobile drawer (left → right)
+- [x] Trigger Demo moved to employee side only
+- [x] Legacy route redirects
+- [x] Future video/audio crisis detection documented
+
+## Phase 2.6 — Navigation correction ✅
+
+- [x] One account dropdown (`AccountMenu`) replaces separate role buttons / chips
+- [x] Employee Trigger Demo → single primary CTA (removed from nav)
+- [x] Admin "Open Dashboard" CTA removed (Dashboard already in nav)
+- [x] Role-aware home (admin company overview vs employee recovery)
+- [x] Mobile drawer holds account selector + nav + primary action + privacy footer
+- [x] `/admin` demo gate (`app/admin/layout.tsx`)
+- [x] `getDemoIdentityByRole`, `ROLE_LABELS` centralized
+
+## Phase 3 — Demo state & engines
 
 - [ ] Implement `lib/demo-store.ts` (Sarah baseline)
 - [ ] Implement `lib/signal-engine.ts`
