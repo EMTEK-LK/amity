@@ -37,6 +37,7 @@ interface SessionEntry {
   room: Room | null;
   connectGen: number;
   videoEl: HTMLVideoElement | null;
+  audioEl: HTMLAudioElement | null;
   status: LiveKitAvatarStatus;
   error: string | null;
   videoAttached: boolean;
@@ -78,6 +79,7 @@ function getOrCreateEntry(sessionId: string): SessionEntry {
       room: null,
       connectGen: 0,
       videoEl: null,
+      audioEl: null,
       status: 'idle',
       error: null,
       videoAttached: false,
@@ -140,14 +142,39 @@ function attachRemoteVideo(
   setStatus(entry, 'streaming');
 }
 
+function attachRemoteAvatarAudio(
+  entry: SessionEntry,
+  track: RemoteTrack,
+  participantIdentity?: string
+) {
+  if (!entry.room || track.kind !== Track.Kind.Audio) return;
+  if (participantIdentity && !isAvatarVideoParticipant(participantIdentity)) return;
+
+  if (!entry.audioEl) {
+    entry.audioEl = document.createElement('audio');
+    entry.audioEl.setAttribute('playsinline', 'true');
+    entry.audioEl.autoplay = true;
+  }
+
+  recoveryDebug('LiveKit', 'attaching avatar audio (lip-sync)', {
+    participantIdentity,
+    trackSid: track.sid,
+  });
+  track.attach(entry.audioEl);
+  void entry.audioEl.play().catch(() => undefined);
+}
+
 function reattachExistingVideo(entry: SessionEntry) {
-  if (!entry.room || !entry.videoEl) return;
+  if (!entry.room) return;
   entry.room.remoteParticipants.forEach((participant) => {
     if (!isAvatarVideoParticipant(participant.identity)) return;
     participant.trackPublications.forEach((pub: RemoteTrackPublication) => {
+      pub.setSubscribed(true);
+      if (!pub.track) return;
       if (pub.kind === Track.Kind.Video) {
-        pub.setSubscribed(true);
-        if (pub.track) attachRemoteVideo(entry, pub.track, participant.identity);
+        attachRemoteVideo(entry, pub.track, participant.identity);
+      } else if (pub.kind === Track.Kind.Audio) {
+        attachRemoteAvatarAudio(entry, pub.track, participant.identity);
       }
     });
   });
@@ -245,6 +272,8 @@ async function connectSession(entry: SessionEntry): Promise<void> {
         });
         if (track.kind === Track.Kind.Video) {
           attachRemoteVideo(entry, track, participant.identity);
+        } else if (track.kind === Track.Kind.Audio) {
+          attachRemoteAvatarAudio(entry, track, participant.identity);
         }
       }
     );
@@ -252,11 +281,13 @@ async function connectSession(entry: SessionEntry): Promise<void> {
     room.on(
       RoomEvent.TrackPublished,
       (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
-        if (publication.kind !== Track.Kind.Video) return;
         if (!isAvatarVideoParticipant(participant.identity)) return;
         publication.setSubscribed(true);
-        if (publication.track) {
+        if (!publication.track) return;
+        if (publication.kind === Track.Kind.Video) {
           attachRemoteVideo(entry, publication.track, participant.identity);
+        } else if (publication.kind === Track.Kind.Audio) {
+          attachRemoteAvatarAudio(entry, publication.track, participant.identity);
         }
       }
     );
@@ -266,8 +297,11 @@ async function connectSession(entry: SessionEntry): Promise<void> {
       if (isAmityAgentParticipant(participant)) entry.agentReady = true;
       if (isAvatarVideoParticipant(participant.identity)) {
         participant.trackPublications.forEach((pub) => {
-          if (pub.kind === Track.Kind.Video && pub.track) {
+          if (!pub.track) return;
+          if (pub.kind === Track.Kind.Video) {
             attachRemoteVideo(entry, pub.track, participant.identity);
+          } else if (pub.kind === Track.Kind.Audio) {
+            attachRemoteAvatarAudio(entry, pub.track, participant.identity);
           }
         });
       }

@@ -60,6 +60,7 @@ export function LiveKitAvatarVideo({
         autoPlay
         muted={false}
       />
+      {/* Lip-synced audio plays from bey-avatar-agent track (not local ElevenLabs). */}
 
       {!showVideo ? (
         <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">

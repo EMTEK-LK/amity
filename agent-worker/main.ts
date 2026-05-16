@@ -2,7 +2,6 @@
  * Amity recovery LiveKit agent + Beyond Presence lip-sync.
  *
  * Run alongside Next.js: npm run agent:dev
- * Loads ../.env.local from repo root.
  */
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -31,6 +30,11 @@ const avatarId =
 
 const elevenApiKey = process.env.ELEVENLABS_API_KEY?.trim();
 const elevenVoiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
+const livekitUrl = process.env.LIVEKIT_URL?.trim();
+const livekitApiKey = process.env.LIVEKIT_API_KEY?.trim();
+const livekitApiSecret = process.env.LIVEKIT_API_SECRET?.trim();
+const beyApiKey =
+  process.env.BEYOND_PRESENCE_API_KEY?.trim() || process.env.BEY_API_KEY?.trim();
 
 export default defineAgent({
   entry: async (ctx: JobContext) => {
@@ -38,36 +42,54 @@ export default defineAgent({
 
     await ctx.connect();
 
-    if (!elevenApiKey) {
-      console.error('[AmityRecovery] [agent] ELEVENLABS_API_KEY missing');
-    }
-
-    if (!process.env.BEYOND_PRESENCE_API_KEY?.trim() && !process.env.BEY_API_KEY?.trim()) {
-      console.error('[AmityRecovery] [agent] BEYOND_PRESENCE_API_KEY / BEY_API_KEY missing');
-    }
+    if (!elevenApiKey) console.error('[AmityRecovery] [agent] ELEVENLABS_API_KEY missing');
+    if (!beyApiKey) console.error('[AmityRecovery] [agent] BEYOND_PRESENCE_API_KEY missing');
 
     const tts = new elevenlabs.TTS({
       apiKey: elevenApiKey,
       ...(elevenVoiceId ? { voiceId: elevenVoiceId } : {}),
     });
 
-    const voiceAgentSession = new voice.AgentSession({ tts });
+    const voiceAgentSession = new voice.AgentSession({
+      tts,
+      userAwayTimeout: null,
+      turnHandling: {
+        interruption: { enabled: false },
+      },
+    });
 
     const voiceAgent = new voice.Agent({
       instructions:
-        'You are Amity, a workplace emotional recovery coach. Only speak the exact lines you receive on the data channel.',
+        'Speak only the exact recovery coaching lines sent on the data channel. Do not improvise.',
     });
 
     const beyAvatarSession = new bey.AvatarSession({
       avatarId,
       avatarParticipantIdentity: 'bey-avatar-agent',
-      apiKey: process.env.BEYOND_PRESENCE_API_KEY?.trim() || process.env.BEY_API_KEY?.trim(),
+      apiKey: beyApiKey,
     });
 
-    await voiceAgentSession.start({ agent: voiceAgent, room: ctx.room });
-    await beyAvatarSession.start(voiceAgentSession, ctx.room);
+    // Bey MUST wire DataStreamAudioOutput before AgentSession.start (see plugin warning).
+    await beyAvatarSession.start(voiceAgentSession, ctx.room, {
+      livekitUrl,
+      livekitApiKey,
+      livekitApiSecret,
+    });
 
-    console.info('[AmityRecovery] [agent] voice + bey avatar started');
+    await voiceAgentSession.start({
+      agent: voiceAgent,
+      room: ctx.room,
+      inputOptions: {
+        audioEnabled: false,
+        textEnabled: false,
+      },
+      outputOptions: {
+        audioEnabled: false,
+        transcriptionEnabled: false,
+      },
+    });
+
+    console.info('[AmityRecovery] [agent] bey + voice session ready (TTS → avatar)');
 
     ctx.room.on(
       'dataReceived',
@@ -86,14 +108,21 @@ export default defineAgent({
           };
           if (msg.type !== 'amity/speak' || !msg.text?.trim()) return;
 
+          const text = msg.text.trim();
           console.info('[AmityRecovery] [agent] speak', {
             from: participant?.identity,
-            chars: msg.text.length,
+            chars: text.length,
           });
 
-          const handle = voiceAgentSession.say(msg.text.trim());
-          void handle.waitForPlayout().catch((err: unknown) => {
-            console.error('[AmityRecovery] [agent] say failed', err);
+          void voiceAgentSession.interrupt({ force: true });
+          const handle = voiceAgentSession.say(text, {
+            allowInterruptions: false,
+            addToChatCtx: false,
+          });
+          void handle.waitForPlayout().then(() => {
+            console.info('[AmityRecovery] [agent] speak done');
+          }).catch((err: unknown) => {
+            console.error('[AmityRecovery] [agent] speak failed', err);
           });
         } catch (err) {
           console.error('[AmityRecovery] [agent] bad data packet', err);

@@ -93,9 +93,16 @@ export default function RecoveryPage() {
   const crisis = safetyState === 'crisis' || session.sessionState === 'crisis';
   const lastAutoSentRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
 
+  const liveKitAvatar =
+    avatarOutput?.displayMode === 'livekit' && avatarOutput?.placeholder === false;
+
+  // LiveKit + Bey: hear lip-synced audio from bey-avatar-agent (not duplicate ElevenLabs).
   useRecoveryVoicePlayback(
     voiceOutput?.audioUrl,
-    consentAccepted && !paused && voiceOutput?.status === 'ready'
+    consentAccepted &&
+      !paused &&
+      voiceOutput?.status === 'ready' &&
+      !liveKitAvatar
   );
 
   useEffect(() => {
