@@ -4,7 +4,6 @@ export interface LiveKitRoomCredentials {
   roomName: string;
   livekitUrl: string;
   participantToken: string;
-  beyAvatarToken: string;
 }
 
 function getLiveKitConfig() {
@@ -28,8 +27,6 @@ async function createToken(opts: {
   apiSecret: string;
   roomName: string;
   identity: string;
-  canPublish: boolean;
-  canSubscribe: boolean;
 }): Promise<string> {
   const at = new AccessToken(opts.apiKey, opts.apiSecret, {
     identity: opts.identity,
@@ -38,13 +35,13 @@ async function createToken(opts: {
   at.addGrant({
     roomJoin: true,
     room: opts.roomName,
-    canPublish: opts.canPublish,
-    canSubscribe: opts.canSubscribe,
+    canPublish: true,
+    canSubscribe: true,
   });
   return at.toJwt();
 }
 
-/** Creates (or reuses) a LiveKit room and returns tokens for browser + Beyond Presence worker. */
+/** Creates (or reuses) a LiveKit room and returns a browser participant token. */
 export async function createLiveKitRecoveryRoom(sessionId: string): Promise<LiveKitRoomCredentials> {
   const config = getLiveKitConfig();
   if (!config) {
@@ -59,49 +56,22 @@ export async function createLiveKitRecoveryRoom(sessionId: string): Promise<Live
     await svc.createRoom({
       name: roomName,
       emptyTimeout: 15 * 60,
-      maxParticipants: 4,
+      maxParticipants: 6,
     });
   } catch {
     /* room may already exist */
   }
 
-  try {
-    const existing = await svc.listParticipants(roomName);
-    for (const participant of existing) {
-      if (
-        participant.identity.startsWith('bey-') ||
-        participant.identity === 'bey-avatar-agent'
-      ) {
-        await svc.removeParticipant(roomName, participant.identity);
-      }
-    }
-  } catch {
-    /* best-effort cleanup of stale BP workers */
-  }
-
-  const [participantToken, beyAvatarToken] = await Promise.all([
-    createToken({
-      apiKey: config.apiKey,
-      apiSecret: config.apiSecret,
-      roomName,
-      identity: `amity-user-${sessionId.slice(0, 12)}`,
-      canPublish: true,
-      canSubscribe: true,
-    }),
-    createToken({
-      apiKey: config.apiKey,
-      apiSecret: config.apiSecret,
-      roomName,
-      identity: 'bey-avatar-agent',
-      canPublish: true,
-      canSubscribe: true,
-    }),
-  ]);
+  const participantToken = await createToken({
+    apiKey: config.apiKey,
+    apiSecret: config.apiSecret,
+    roomName,
+    identity: `amity-user-${sessionId.slice(0, 12)}`,
+  });
 
   return {
     roomName,
     livekitUrl: config.livekitUrl,
     participantToken,
-    beyAvatarToken,
   };
 }

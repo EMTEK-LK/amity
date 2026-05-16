@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { resolveBeyondPresenceAvatarId, startBeyondPresenceSpeechToVideo } from '@/lib/beyond-presence-stv';
+import { dispatchAmityRecoveryAgent } from '@/lib/livekit-agent-dispatch';
 import { createLiveKitRecoveryRoom, isLiveKitConfigured } from '@/lib/livekit-room';
-import { RoomServiceClient } from 'livekit-server-sdk';
 
 function serverLog(phase: string, data: Record<string, unknown>) {
   console.info(`[AmityRecovery] [avatar-livekit] [${phase}]`, data);
@@ -11,8 +10,8 @@ function serverLog(phase: string, data: Record<string, unknown>) {
  * POST /api/recovery/avatar-livekit
  * Body: { sessionId: string, phase: 'connect' | 'activate' }
  *
- * connect — create LiveKit room + browser token
- * activate — start BP speech-to-video worker (call before publishing ElevenLabs audio)
+ * connect — LiveKit room + user token + dispatch amity-recovery-agent worker
+ * activate — legacy alias for connect dispatch (BP REST path removed)
  */
 export async function POST(request: Request) {
   if (!isLiveKitConfigured()) {
@@ -20,7 +19,7 @@ export async function POST(request: Request) {
       {
         error: 'LIVEKIT_NOT_CONFIGURED',
         message:
-          'Add LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET from LiveKit Cloud to enable lip-synced avatar video.',
+          'Add LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET from LiveKit Cloud.',
       },
       { status: 400 }
     );
@@ -40,67 +39,15 @@ export async function POST(request: Request) {
 
   try {
     const room = await createLiveKitRecoveryRoom(sessionId);
-    serverLog('room', {
-      sessionId,
-      phase,
-      roomName: room.roomName,
-      livekitUrl: room.livekitUrl,
-      userIdentity: 'amity-user-*',
-      beyIdentity: 'bey-avatar-agent',
-    });
+    serverLog('room', { sessionId, roomName: room.roomName, livekitUrl: room.livekitUrl });
 
-    if (phase === 'connect') {
-      return NextResponse.json({
-        roomName: room.roomName,
-        livekitUrl: room.livekitUrl,
-        token: room.participantToken,
-      });
-    }
-
-    const avatarId = await resolveBeyondPresenceAvatarId();
-    serverLog('resolve-avatar', { sessionId, avatarId: avatarId ?? null });
-
-    if (!avatarId) {
-      return NextResponse.json(
-        {
-          error: 'BEY_AVATAR_MISSING',
-          message:
-            'Set BEYOND_PRESENCE_AVATAR_ID or BEYOND_PRESENCE_AGENT_ID with a valid avatar in Beyond Presence.',
-        },
-        { status: 400 }
-      );
-    }
-
-    const bpSession = await startBeyondPresenceSpeechToVideo({
-      avatarId,
-      livekitUrl: room.livekitUrl,
-      livekitToken: room.beyAvatarToken,
-    });
-
-    serverLog('activate-ok', {
-      sessionId,
-      beySessionId: bpSession.sessionId,
-      avatarId: bpSession.avatarId,
-      startedAt: bpSession.startedAt,
-    });
-
+    let agentDispatched = false;
     try {
-      const host = room.livekitUrl.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:');
-      const apiKey = process.env.LIVEKIT_API_KEY!.trim();
-      const apiSecret = process.env.LIVEKIT_API_SECRET!.trim();
-      const svc = new RoomServiceClient(host, apiKey, apiSecret);
-      const participants = await svc.listParticipants(room.roomName);
-      serverLog('room-participants', {
-        sessionId,
-        count: participants.length,
-        identities: participants.map((p) => ({
-          identity: p.identity,
-          tracks: p.tracks?.map((t) => ({ type: t.type, sid: t.sid, name: t.name })),
-        })),
-      });
-    } catch (listErr) {
-      serverLog('room-participants-error', {
-        message: listErr instanceof Error ? listErr.message : String(listErr),
+      await dispatchAmityRecoveryAgent(room.roomName);
+      agentDispatched = true;
+    } catch (dispatchErr) {
+      serverLog('dispatch-error', {
+        message: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
       });
     }
 
@@ -108,17 +55,15 @@ export async function POST(request: Request) {
       roomName: room.roomName,
       livekitUrl: room.livekitUrl,
       token: room.participantToken,
-      beySessionId: bpSession.sessionId,
-      avatarId: bpSession.avatarId,
+      agentDispatched,
+      mode: 'livekit-agents-bey',
+      message: agentDispatched
+        ? 'Agent dispatched. Ensure npm run agent:dev is running.'
+        : 'Room ready but agent dispatch failed. Start the agent worker.',
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'LiveKit avatar session failed.';
-    serverLog('error', {
-      sessionId,
-      phase,
-      message,
-      stack: err instanceof Error ? err.stack : undefined,
-    });
+    serverLog('error', { sessionId, phase, message });
     return NextResponse.json({ error: 'AVATAR_LIVEKIT_FAILED', message }, { status: 502 });
   }
 }

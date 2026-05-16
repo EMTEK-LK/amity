@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  LocalAudioTrack,
   Room,
   RoomEvent,
   Track,
@@ -15,7 +14,7 @@ export type LiveKitAvatarStatus =
   | 'idle'
   | 'connecting'
   | 'connected'
-  | 'activating'
+  | 'waiting_agent'
   | 'streaming'
   | 'error';
 
@@ -27,11 +26,9 @@ export interface LiveKitAvatarSnapshot {
 
 type Listener = (snapshot: LiveKitAvatarSnapshot) => void;
 
+const SPEAK_TOPIC = 'amity/speak';
 const RELEASE_DELAY_MS = 600;
-const BP_WARMUP_MS = 3000;
-const BP_JOIN_TIMEOUT_MS = 20000;
-/** Keep audio published after clip ends so BP can finish lip-sync video. */
-const AUDIO_UNPUBLISH_GRACE_MS = 8000;
+const AGENT_JOIN_TIMEOUT_MS = 30000;
 
 interface SessionEntry {
   sessionId: string;
@@ -39,25 +36,24 @@ interface SessionEntry {
   releaseTimer: ReturnType<typeof setTimeout> | null;
   room: Room | null;
   connectGen: number;
-  bpActivated: boolean;
-  activatePromise: Promise<void> | null;
-  audioPublish: LocalAudioTrack | null;
   videoEl: HTMLVideoElement | null;
   status: LiveKitAvatarStatus;
   error: string | null;
   videoAttached: boolean;
+  agentReady: boolean;
   listeners: Set<Listener>;
 }
 
 const sessions = new Map<string, SessionEntry>();
 
 function emit(entry: SessionEntry) {
-  const snapshot: LiveKitAvatarSnapshot = {
-    status: entry.status,
-    error: entry.error,
-    videoAttached: entry.videoAttached,
-  };
-  entry.listeners.forEach((l) => l(snapshot));
+  entry.listeners.forEach((l) =>
+    l({
+      status: entry.status,
+      error: entry.error,
+      videoAttached: entry.videoAttached,
+    })
+  );
 }
 
 function setStatus(entry: SessionEntry, status: LiveKitAvatarStatus) {
@@ -81,13 +77,11 @@ function getOrCreateEntry(sessionId: string): SessionEntry {
       releaseTimer: null,
       room: null,
       connectGen: 0,
-      bpActivated: false,
-      activatePromise: null,
-      audioPublish: null,
       videoEl: null,
       status: 'idle',
       error: null,
       videoAttached: false,
+      agentReady: false,
       listeners: new Set(),
     };
     sessions.set(sessionId, entry);
@@ -95,23 +89,28 @@ function getOrCreateEntry(sessionId: string): SessionEntry {
   return entry;
 }
 
-function isRemoteAvatarParticipant(identity: string): boolean {
-  return !identity.startsWith('amity-user-');
+function isAvatarVideoParticipant(identity: string): boolean {
+  return identity.startsWith('bey-');
+}
+
+function isAmityAgentParticipant(participant: RemoteParticipant): boolean {
+  if (participant.isAgent) return true;
+  const id = participant.identity;
+  return (
+    id.startsWith('agent-') ||
+    id === 'amity-recovery-agent' ||
+    id.includes('amity-recovery')
+  );
 }
 
 function logRoomParticipants(entry: SessionEntry, label: string) {
   const room = entry.room;
-  if (!room) {
-    recoveryDebug('LiveKit', `${label}: no room`, { sessionId: entry.sessionId });
-    return;
-  }
+  if (!room) return;
 
   const remote = [...room.remoteParticipants.values()].map((p) => ({
     identity: p.identity,
-    sid: p.sid,
     tracks: [...p.trackPublications.values()].map((pub) => ({
       kind: pub.kind,
-      sid: pub.trackSid,
       subscribed: pub.isSubscribed,
       hasTrack: Boolean(pub.track),
     })),
@@ -119,51 +118,10 @@ function logRoomParticipants(entry: SessionEntry, label: string) {
 
   recoveryDebug('LiveKit', label, {
     sessionId: entry.sessionId,
-    roomName: room.name,
     roomState: room.state,
-    localIdentity: room.localParticipant.identity,
     remoteCount: remote.length,
     remote,
   });
-}
-
-async function waitForAvatarParticipant(entry: SessionEntry): Promise<boolean> {
-  const room = entry.room;
-  if (!room) return false;
-
-  const hasAvatar = () => {
-    for (const participant of room.remoteParticipants.values()) {
-      if (isRemoteAvatarParticipant(participant.identity)) return true;
-    }
-    return false;
-  };
-
-  if (hasAvatar()) {
-    logRoomParticipants(entry, 'BP participant already in room');
-    return true;
-  }
-
-  recoveryDebug('LiveKit', 'waiting for BP participant…', {
-    sessionId: entry.sessionId,
-    timeoutMs: BP_JOIN_TIMEOUT_MS,
-  });
-
-  const deadline = Date.now() + BP_JOIN_TIMEOUT_MS;
-  let polls = 0;
-  while (Date.now() < deadline) {
-    polls += 1;
-    await new Promise((r) => setTimeout(r, 400));
-    if (hasAvatar()) {
-      logRoomParticipants(entry, `BP participant joined (poll #${polls})`);
-      return true;
-    }
-    if (polls % 5 === 0) {
-      logRoomParticipants(entry, `still waiting (poll #${polls})`);
-    }
-  }
-
-  logRoomParticipants(entry, 'BP participant never joined');
-  return false;
 }
 
 function attachRemoteVideo(
@@ -172,42 +130,20 @@ function attachRemoteVideo(
   participantIdentity?: string
 ) {
   const el = entry.videoEl;
-  if (!el || track.kind !== Track.Kind.Video || !entry.room) {
-    recoveryDebugWarn('LiveKit', 'attachRemoteVideo skipped', {
-      hasEl: Boolean(el),
-      trackKind: track.kind,
-      hasRoom: Boolean(entry.room),
-      participantIdentity,
-    });
-    return;
-  }
-  if (participantIdentity && !isRemoteAvatarParticipant(participantIdentity)) {
-    recoveryDebug('LiveKit', 'ignoring non-avatar video track', { participantIdentity });
-    return;
-  }
+  if (!el || track.kind !== Track.Kind.Video || !entry.room) return;
+  if (participantIdentity && !isAvatarVideoParticipant(participantIdentity)) return;
 
-  recoveryDebug('LiveKit', 'attaching remote video', {
-    sessionId: entry.sessionId,
-    participantIdentity,
-    trackSid: track.sid,
-  });
-
+  recoveryDebug('LiveKit', 'attaching avatar video', { participantIdentity, trackSid: track.sid });
   track.attach(el);
-  void el.play().catch((err) => {
-    recoveryDebugWarn('LiveKit', 'video element play() failed', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  });
+  void el.play().catch(() => undefined);
   entry.videoAttached = true;
-  entry.status = 'streaming';
-  emit(entry);
+  setStatus(entry, 'streaming');
 }
 
 function reattachExistingVideo(entry: SessionEntry) {
   if (!entry.room || !entry.videoEl) return;
-  logRoomParticipants(entry, 'reattachExistingVideo');
   entry.room.remoteParticipants.forEach((participant) => {
-    if (!isRemoteAvatarParticipant(participant.identity)) return;
+    if (!isAvatarVideoParticipant(participant.identity)) return;
     participant.trackPublications.forEach((pub: RemoteTrackPublication) => {
       if (pub.kind === Track.Kind.Video) {
         pub.setSubscribed(true);
@@ -217,70 +153,44 @@ function reattachExistingVideo(entry: SessionEntry) {
   });
 }
 
-async function activateBp(entry: SessionEntry): Promise<void> {
-  if (entry.bpActivated) {
-    recoveryDebug('LiveKit', 'BP already activated', { sessionId: entry.sessionId });
-    return;
-  }
-  if (entry.activatePromise) {
-    await entry.activatePromise;
-    return;
-  }
+async function waitForRecoveryAgent(entry: SessionEntry): Promise<boolean> {
+  const room = entry.room;
+  if (!room) return false;
 
-  const run = async () => {
-    setStatus(entry, 'activating');
-    recoveryDebug('LiveKit', 'POST avatar-livekit activate', { sessionId: entry.sessionId });
-
-    const res = await fetch('/api/recovery/avatar-livekit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId: entry.sessionId, phase: 'activate' }),
-    });
-    const data = (await res.json()) as {
-      message?: string;
-      error?: string;
-      beySessionId?: string;
-      avatarId?: string;
-    };
-
-    recoveryDebug('LiveKit', 'activate response', {
-      ok: res.ok,
-      status: res.status,
-      beySessionId: data.beySessionId,
-      avatarId: data.avatarId,
-      error: data.error,
-      message: data.message,
-    });
-
-    if (!res.ok) {
-      throw new Error(data.message ?? data.error ?? 'Could not start Beyond Presence avatar');
+  const hasAgent = () => {
+    for (const p of room.remoteParticipants.values()) {
+      if (isAmityAgentParticipant(p) || isAvatarVideoParticipant(p.identity)) {
+        return true;
+      }
     }
-
-    entry.bpActivated = true;
-    await new Promise((r) => setTimeout(r, BP_WARMUP_MS));
-    await waitForAvatarParticipant(entry);
-    if (entry.status === 'activating') setStatus(entry, 'connected');
+    return false;
   };
 
-  entry.activatePromise = run();
-  try {
-    await entry.activatePromise;
-  } finally {
-    entry.activatePromise = null;
+  if (hasAgent()) {
+    entry.agentReady = true;
+    return true;
   }
+
+  setStatus(entry, 'waiting_agent');
+  const deadline = Date.now() + AGENT_JOIN_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 500));
+    if (hasAgent()) {
+      entry.agentReady = true;
+      logRoomParticipants(entry, 'agent/avatar joined');
+      return true;
+    }
+  }
+
+  logRoomParticipants(entry, 'agent join timeout');
+  return false;
 }
 
 async function connectSession(entry: SessionEntry): Promise<void> {
   if (entry.room?.state === 'connected') {
-    recoveryDebug('LiveKit', 'reusing connected room', { sessionId: entry.sessionId });
-    setStatus(entry, 'connected');
+    setStatus(entry, entry.agentReady ? 'connected' : 'waiting_agent');
     reattachExistingVideo(entry);
-    if (!entry.bpActivated) {
-      void activateBp(entry).catch((err) => {
-        recoveryDebugError('LiveKit', 'BP activation failed', err);
-        setError(entry, err instanceof Error ? err.message : 'Beyond Presence activation failed');
-      });
-    }
+    void waitForRecoveryAgent(entry);
     return;
   }
 
@@ -291,7 +201,9 @@ async function connectSession(entry: SessionEntry): Promise<void> {
   setError(entry, null);
 
   try {
-    recoveryDebug('LiveKit', 'POST avatar-livekit connect', { sessionId: entry.sessionId, gen });
+    recoveryDebug('LiveKit', 'POST avatar-livekit connect (dispatches agent worker)', {
+      sessionId: entry.sessionId,
+    });
 
     const res = await fetch('/api/recovery/avatar-livekit', {
       method: 'POST',
@@ -301,43 +213,35 @@ async function connectSession(entry: SessionEntry): Promise<void> {
     const data = (await res.json()) as {
       livekitUrl?: string;
       token?: string;
-      roomName?: string;
+      agentDispatched?: boolean;
       message?: string;
       error?: string;
     };
 
     recoveryDebug('LiveKit', 'connect response', {
       ok: res.ok,
-      status: res.status,
-      roomName: data.roomName,
-      livekitUrl: data.livekitUrl,
-      tokenLength: data.token?.length,
+      agentDispatched: data.agentDispatched,
       error: data.error,
     });
 
     if (!res.ok) {
       throw new Error(data.message ?? data.error ?? 'Could not create LiveKit room');
     }
-    if (gen !== entry.connectGen) {
-      recoveryDebugWarn('LiveKit', 'stale connect aborted', { gen, current: entry.connectGen });
-      return;
-    }
+    if (gen !== entry.connectGen) return;
 
     const room = new Room({ adaptiveStream: true, dynacast: true });
     entry.room = room;
 
     room.on(RoomEvent.ConnectionStateChanged, (state) => {
-      recoveryDebug('LiveKit', 'connection state', { sessionId: entry.sessionId, state });
+      recoveryDebug('LiveKit', 'connection state', { state });
     });
 
     room.on(
       RoomEvent.TrackSubscribed,
-      (track: RemoteTrack, pub, participant: RemoteParticipant) => {
+      (track: RemoteTrack, _pub, participant: RemoteParticipant) => {
         recoveryDebug('LiveKit', 'TrackSubscribed', {
           kind: track.kind,
-          participant: participant.identity,
-          trackSid: track.sid,
-          pubSid: pub.trackSid,
+          identity: participant.identity,
         });
         if (track.kind === Track.Kind.Video) {
           attachRemoteVideo(entry, track, participant.identity);
@@ -348,14 +252,8 @@ async function connectSession(entry: SessionEntry): Promise<void> {
     room.on(
       RoomEvent.TrackPublished,
       (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
-        recoveryDebug('LiveKit', 'TrackPublished', {
-          kind: publication.kind,
-          participant: participant.identity,
-          trackSid: publication.trackSid,
-          hasTrack: Boolean(publication.track),
-        });
         if (publication.kind !== Track.Kind.Video) return;
-        if (!isRemoteAvatarParticipant(participant.identity)) return;
+        if (!isAvatarVideoParticipant(participant.identity)) return;
         publication.setSubscribed(true);
         if (publication.track) {
           attachRemoteVideo(entry, publication.track, participant.identity);
@@ -363,38 +261,22 @@ async function connectSession(entry: SessionEntry): Promise<void> {
       }
     );
 
-    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-      recoveryDebug('LiveKit', 'TrackUnsubscribed', { kind: track.kind, sid: track.sid });
-      track.detach();
-      entry.videoAttached = false;
-      emit(entry);
-    });
-
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
-      recoveryDebug('LiveKit', 'ParticipantConnected', {
-        identity: participant.identity,
-        sid: participant.sid,
-      });
-      if (!isRemoteAvatarParticipant(participant.identity)) return;
-      participant.trackPublications.forEach((pub: RemoteTrackPublication) => {
-        if (pub.kind === Track.Kind.Video) {
-          pub.setSubscribed(true);
-          if (pub.track) attachRemoteVideo(entry, pub.track, participant.identity);
-        }
-      });
+      recoveryDebug('LiveKit', 'ParticipantConnected', { identity: participant.identity });
+      if (isAmityAgentParticipant(participant)) entry.agentReady = true;
+      if (isAvatarVideoParticipant(participant.identity)) {
+        participant.trackPublications.forEach((pub) => {
+          if (pub.kind === Track.Kind.Video && pub.track) {
+            attachRemoteVideo(entry, pub.track, participant.identity);
+          }
+        });
+      }
     });
 
-    room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
-      recoveryDebugWarn('LiveKit', 'ParticipantDisconnected', {
-        identity: participant.identity,
-      });
-    });
-
-    room.on(RoomEvent.Disconnected, (reason) => {
-      recoveryDebugWarn('LiveKit', 'room Disconnected', { reason, gen, connectGen: entry.connectGen });
+    room.on(RoomEvent.Disconnected, () => {
       if (gen !== entry.connectGen) return;
       entry.room = null;
-      entry.bpActivated = false;
+      entry.agentReady = false;
       entry.videoAttached = false;
       setStatus(entry, 'idle');
     });
@@ -407,21 +289,23 @@ async function connectSession(entry: SessionEntry): Promise<void> {
 
     try {
       await room.startAudio();
-      recoveryDebug('LiveKit', 'room.startAudio() ok');
-    } catch (err) {
-      recoveryDebugWarn('LiveKit', 'room.startAudio() failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
+    } catch {
+      /* gesture */
     }
 
     setStatus(entry, 'connected');
-    logRoomParticipants(entry, 'connected');
-    reattachExistingVideo(entry);
-
-    void activateBp(entry).catch((err) => {
-      recoveryDebugError('LiveKit', 'BP activation failed after connect', err);
-      setError(entry, err instanceof Error ? err.message : 'Beyond Presence activation failed');
+    logRoomParticipants(entry, 'browser connected');
+    void waitForRecoveryAgent(entry).then((ok) => {
+      if (!ok) {
+        setError(
+          entry,
+          'LiveKit agent worker not in room. Run: npm run agent:dev in a second terminal.'
+        );
+      } else {
+        setStatus(entry, 'connected');
+      }
     });
+    reattachExistingVideo(entry);
   } catch (err) {
     if (gen !== entry.connectGen) return;
     recoveryDebugError('LiveKit', 'connect failed', err);
@@ -430,151 +314,44 @@ async function connectSession(entry: SessionEntry): Promise<void> {
   }
 }
 
-async function loadAudioBuffer(audioUrl: string): Promise<AudioBuffer> {
-  let arrayBuffer: ArrayBuffer;
-  if (audioUrl.startsWith('data:')) {
-    const base64 = audioUrl.split(',')[1] ?? '';
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    arrayBuffer = bytes.buffer;
-  } else {
-    const res = await fetch(audioUrl);
-    if (!res.ok) throw new Error('Could not load recovery audio');
-    arrayBuffer = await res.arrayBuffer();
-  }
-  const ctx = new AudioContext();
-  try {
-    return await ctx.decodeAudioData(arrayBuffer);
-  } finally {
-    void ctx.close();
-  }
-}
-
 function teardownSession(entry: SessionEntry) {
-  recoveryDebug('LiveKit', 'teardown session', { sessionId: entry.sessionId });
   entry.connectGen++;
-  entry.audioPublish?.stop();
-  entry.audioPublish = null;
   entry.room?.disconnect();
   entry.room = null;
-  entry.bpActivated = false;
-  entry.activatePromise = null;
+  entry.agentReady = false;
   entry.videoAttached = false;
   entry.status = 'idle';
   entry.error = null;
   emit(entry);
 }
 
-async function publishAudioToRoom(entry: SessionEntry, audioUrl: string): Promise<void> {
+export async function publishSpeakText(entry: SessionEntry, text: string): Promise<void> {
   const room = entry.room;
   if (!room || room.state !== 'connected') {
-    recoveryDebugWarn('LiveKit', 'publish skipped — room not connected', {
-      roomState: room?.state,
-    });
+    recoveryDebugWarn('LiveKit', 'speak skipped — not connected');
     return;
   }
 
-  recoveryDebug('LiveKit', 'publishAudioToRoom start', {
-    sessionId: entry.sessionId,
-    audioUrlPrefix: audioUrl.slice(0, 40),
-    audioUrlLength: audioUrl.length,
-  });
+  const trimmed = text.trim();
+  if (!trimmed) return;
 
-  await activateBp(entry);
-
-  const avatarReady = await waitForAvatarParticipant(entry);
-  if (!avatarReady) {
-    recoveryDebugWarn(
-      'LiveKit',
-      'BP participant missing — publishing audio anyway (voice-only fallback)'
-    );
-    setError(
-      entry,
-      'Avatar video waiting: Beyond Presence has not joined yet. Voice should still play locally.'
-    );
+  const ready = entry.agentReady || (await waitForRecoveryAgent(entry));
+  if (!ready) {
+    setError(entry, 'Start the agent worker: npm run agent:dev');
+    return;
   }
 
-  if (entry.audioPublish) {
-    await room.localParticipant.unpublishTrack(entry.audioPublish).catch(() => undefined);
-    entry.audioPublish.stop();
-    entry.audioPublish = null;
-  }
+  const payload = new TextEncoder().encode(
+    JSON.stringify({ type: 'amity/speak', text: trimmed })
+  );
 
-  const audioBuffer = await loadAudioBuffer(audioUrl);
-  const ctx = new AudioContext();
-  await ctx.resume();
-
-  const source = ctx.createBufferSource();
-  source.buffer = audioBuffer;
-
-  // Single playback path → speakers (no separate Voice hook in LiveKit mode).
-  source.connect(ctx.destination);
-
-  const dest = ctx.createMediaStreamDestination();
-  source.connect(dest);
-
-  const mediaTrack = dest.stream.getAudioTracks()[0];
-  if (!mediaTrack) {
-    void ctx.close();
-    throw new Error('Could not create LiveKit audio stream');
-  }
-
-  const localTrack = new LocalAudioTrack(mediaTrack);
-  entry.audioPublish = localTrack;
-
-  recoveryDebug('LiveKit', 'publishing Web Audio track (mic source)', {
-    durationSec: audioBuffer.duration,
-  });
-  await room.localParticipant.publishTrack(localTrack, {
-    source: Track.Source.Microphone,
-    name: 'amity-tts',
-  });
-  logRoomParticipants(entry, 'after audio publish');
-
-  const waitForVideo = new Promise<void>((resolve) => {
-    const deadline = Date.now() + 45000;
-    const check = () => {
-      if (entry.videoAttached) {
-        resolve();
-        return;
-      }
-      if (Date.now() > deadline) {
-        recoveryDebugWarn('LiveKit', 'no video track within 45s after audio publish');
-        resolve();
-        return;
-      }
-      setTimeout(check, 500);
-    };
-    check();
-  });
-
-  source.start(0);
-  recoveryDebug('LiveKit', 'Web Audio playback started');
-
-  source.onended = () => {
-    recoveryDebug('LiveKit', 'Web Audio ended — grace period before unpublish', {
-      graceMs: AUDIO_UNPUBLISH_GRACE_MS,
-    });
-    void waitForVideo.then(() => {
-      setTimeout(() => {
-        void room.localParticipant.unpublishTrack(localTrack).catch(() => undefined);
-        localTrack.stop();
-        if (entry.audioPublish === localTrack) entry.audioPublish = null;
-        void ctx.close();
-        if (!entry.videoAttached && entry.status !== 'error') {
-          setStatus(entry, 'connected');
-        }
-        logRoomParticipants(entry, 'after audio unpublish');
-      }, AUDIO_UNPUBLISH_GRACE_MS);
-    });
-  };
+  recoveryDebug('LiveKit', 'publishData amity/speak', { chars: trimmed.length });
+  await room.localParticipant.publishData(payload, { reliable: true, topic: SPEAK_TOPIC });
 }
 
 export function retainLiveKitAvatarSession(sessionId: string): () => void {
   const entry = getOrCreateEntry(sessionId);
   entry.refCount += 1;
-  recoveryDebug('LiveKit', 'retain session', { sessionId, refCount: entry.refCount });
   if (entry.releaseTimer) {
     clearTimeout(entry.releaseTimer);
     entry.releaseTimer = null;
@@ -583,9 +360,7 @@ export function retainLiveKitAvatarSession(sessionId: string): () => void {
 
   return () => {
     entry.refCount = Math.max(0, entry.refCount - 1);
-    recoveryDebug('LiveKit', 'release session', { sessionId, refCount: entry.refCount });
     if (entry.refCount > 0) return;
-
     entry.releaseTimer = setTimeout(() => {
       if (entry.refCount > 0) return;
       teardownSession(entry);
@@ -614,19 +389,14 @@ export function setLiveKitAvatarVideoElement(
 ): void {
   const entry = getOrCreateEntry(sessionId);
   entry.videoEl = element;
-  recoveryDebug('LiveKit', 'video element set', { sessionId, hasElement: Boolean(element) });
   if (element) reattachExistingVideo(entry);
 }
 
-export function publishLiveKitAvatarAudio(sessionId: string, audioUrl: string): void {
+export function publishLiveKitAvatarSpeak(sessionId: string, text: string): void {
   const entry = sessions.get(sessionId);
-  if (!entry?.room) {
-    recoveryDebugWarn('LiveKit', 'publishLiveKitAvatarAudio: no room', { sessionId });
-    return;
-  }
-  void publishAudioToRoom(entry, audioUrl).catch((err) => {
-    recoveryDebugError('LiveKit', 'publishAudioToRoom failed', err);
-    setError(entry, err instanceof Error ? err.message : 'Failed to stream audio to avatar');
-    setStatus(entry, 'error');
+  if (!entry) return;
+  void publishSpeakText(entry, text).catch((err) => {
+    recoveryDebugError('LiveKit', 'publishSpeakText failed', err);
+    setError(entry, err instanceof Error ? err.message : 'Could not send speak to agent');
   });
 }

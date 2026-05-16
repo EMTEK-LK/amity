@@ -23,6 +23,7 @@ interface AvatarSessionPanelProps {
   agentName?: string | null;
   avatarPlaceholder?: boolean;
   audioUrl?: string | null;
+  speakText?: string | null;
   isSpeaking?: boolean;
 }
 
@@ -46,6 +47,7 @@ export function AvatarSessionPanel({
   agentName,
   avatarPlaceholder = true,
   audioUrl,
+  speakText,
   isSpeaking = false,
 }: AvatarSessionPanelProps) {
   const mm = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
@@ -101,7 +103,7 @@ export function AvatarSessionPanel({
           <LiveKitAvatarVideo
             sessionId={sessionId}
             sessionActive={sessionActive}
-            audioUrl={audioUrl}
+            speakText={speakText}
             status={status}
             coachLabel={coachLabel}
           />
@@ -143,7 +145,7 @@ export function AvatarSessionPanel({
       <CardContent className="space-y-2 py-3 text-center text-xs text-[var(--amity-text-muted)]">
         {showLiveKit ? (
           <p>
-            ElevenLabs audio is streamed into LiveKit; Beyond Presence renders lip-synced video.
+            Run npm run agent:dev in a second terminal. The agent worker uses ElevenLabs + Beyond Presence for lip-sync video.
             Amity LLM powers the words — not the BP iframe agent.
           </p>
         ) : showIframe ? (

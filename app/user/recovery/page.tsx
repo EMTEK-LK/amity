@@ -88,20 +88,14 @@ export default function RecoveryPage() {
   const [geminiPreview, setGeminiPreview] = useState<Record<string, unknown> | null>(null);
   const [voiceOutput, setVoiceOutput] = useState<AgentVoiceOutput | null>(null);
   const [avatarOutput, setAvatarOutput] = useState<AgentAvatarOutput | null>(null);
+  const [agentSpeakText, setAgentSpeakText] = useState<string | null>(null);
 
   const crisis = safetyState === 'crisis' || session.sessionState === 'crisis';
   const lastAutoSentRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
 
-  const liveKitAvatar =
-    avatarOutput?.displayMode === 'livekit' && avatarOutput?.placeholder === false;
-
-  // LiveKit mode: one Web Audio path in publishAudioToRoom (avoids echo).
   useRecoveryVoicePlayback(
     voiceOutput?.audioUrl,
-    consentAccepted &&
-      !paused &&
-      voiceOutput?.status === 'ready' &&
-      !liveKitAvatar
+    consentAccepted && !paused && voiceOutput?.status === 'ready'
   );
 
   useEffect(() => {
@@ -242,6 +236,8 @@ export default function RecoveryPage() {
         });
 
         const assistantText = formatAssistantMessage(result.response, result.nextQuestion);
+        const speakLine = [result.response, result.nextQuestion].filter(Boolean).join(' ').trim();
+        if (speakLine) setAgentSpeakText(speakLine);
 
         if (result.crisis) {
           activateCrisis(ctx, assistantText);
@@ -376,6 +372,7 @@ export default function RecoveryPage() {
     setGeminiPreview(null);
     setVoiceOutput(null);
     setAvatarOutput(null);
+    setAgentSpeakText(null);
     session.stopSession();
   };
 
@@ -440,6 +437,7 @@ export default function RecoveryPage() {
             agentName={avatarOutput?.agentName}
             avatarPlaceholder={avatarOutput?.placeholder ?? true}
             audioUrl={voiceOutput?.audioUrl}
+            speakText={agentSpeakText}
             isSpeaking={voiceOutput?.status === 'ready'}
           />
           <QuickModeButtons

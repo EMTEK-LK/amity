@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "agent:install": "npm install --prefix agent-worker",
+    "agent:dev": "npm run dev --prefix agent-worker",
+    "agent:start": "npm run start --prefix agent-worker",
+    "recovery:dev": "npx concurrently -k \"npm run dev\" \"npm run agent:dev\""
   },
   "dependencies": {
     "clsx": "^2.1.1",

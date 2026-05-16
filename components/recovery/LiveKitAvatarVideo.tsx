@@ -11,7 +11,8 @@ import type { AvatarStatus } from '@/types/recovery-room';
 interface LiveKitAvatarVideoProps {
   sessionId: string;
   sessionActive: boolean;
-  audioUrl?: string | null;
+  /** Coaching line for the agent worker (ElevenLabs TTS + Bey lip-sync). */
+  speakText?: string | null;
   status: AvatarStatus;
   coachLabel: string;
 }
@@ -19,8 +20,8 @@ interface LiveKitAvatarVideoProps {
 const LIVEKIT_STATUS: Record<string, string> = {
   idle: 'Preparing avatar…',
   connecting: 'Connecting to LiveKit…',
-  connected: 'Avatar channel ready',
-  activating: 'Starting Beyond Presence…',
+  connected: 'Waiting for agent worker…',
+  waiting_agent: 'Start agent: npm run agent:dev',
   streaming: 'Speaking',
   error: 'Avatar error',
 };
@@ -28,7 +29,7 @@ const LIVEKIT_STATUS: Record<string, string> = {
 export function LiveKitAvatarVideo({
   sessionId,
   sessionActive,
-  audioUrl,
+  speakText,
   status,
   coachLabel,
 }: LiveKitAvatarVideoProps) {
@@ -40,10 +41,9 @@ export function LiveKitAvatarVideo({
   }, [livekit.attachVideo]);
 
   useEffect(() => {
-    if (!audioUrl || !sessionActive) return;
-    void livekit.publishRecoveryAudio(audioUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- publish when audio URL changes only
-  }, [audioUrl, sessionActive]);
+    if (!speakText?.trim() || !sessionActive) return;
+    void livekit.publishSpeakText(speakText);
+  }, [speakText, sessionActive, livekit.publishSpeakText]);
 
   const showVideo = livekit.videoAttached;
   const pulse = livekit.status === 'streaming' || status === 'responding';
@@ -62,13 +62,13 @@ export function LiveKitAvatarVideo({
       />
 
       {!showVideo ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
           {livekit.status === 'error' ? (
             <>
               <p className="text-sm text-[var(--amity-danger)]">{livekit.error}</p>
               <p className="text-xs text-[var(--amity-text-muted)]">
-                Check LiveKit Cloud keys and Beyond Presence avatar ID. Falling back to voice-only
-                still works in chat.
+                Run <code className="rounded bg-black/20 px-1">npm run agent:dev</code> in a second
+                terminal. Voice in chat still works via ElevenLabs.
               </p>
             </>
           ) : (
@@ -76,12 +76,11 @@ export function LiveKitAvatarVideo({
               <Loader2 className="h-8 w-8 animate-spin text-[var(--amity-primary)]" aria-hidden />
               <p className="text-sm font-medium text-[var(--amity-text)]">{coachLabel}</p>
               <p className="text-xs text-[var(--amity-text-muted)]">
-                {LIVEKIT_STATUS[livekit.status] ?? 'Loading lip-synced avatar…'} Voice plays from
-                ElevenLabs while the avatar connects.
+                {LIVEKIT_STATUS[livekit.status] ?? 'Loading lip-synced avatar…'}
               </p>
             </>
           )}
-        </div>
+        </motion.div>
       ) : null}
 
       {pulse && showVideo ? (
@@ -97,9 +96,7 @@ export function LiveKitAvatarVideo({
         <Badge variant={livekit.status === 'error' ? 'danger' : 'primary'}>
           {livekit.videoAttached
             ? 'Lip-sync live'
-            : livekit.status === 'activating'
-              ? 'Starting avatar…'
-              : LIVEKIT_STATUS[livekit.status]}
+            : LIVEKIT_STATUS[livekit.status] ?? livekit.status}
         </Badge>
       </div>
     </motion.div>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import {
-  publishLiveKitAvatarAudio,
+  publishLiveKitAvatarSpeak,
   retainLiveKitAvatarSession,
   setLiveKitAvatarVideoElement,
   subscribeLiveKitAvatarSession,
@@ -14,7 +14,7 @@ export type { LiveKitAvatarStatus };
 
 export interface UseLiveKitAvatarResult extends LiveKitAvatarSnapshot {
   attachVideo: (element: HTMLVideoElement | null) => void;
-  publishRecoveryAudio: (audioUrl: string) => Promise<void>;
+  publishSpeakText: (text: string) => Promise<void>;
   disconnect: () => void;
 }
 
@@ -30,10 +30,8 @@ export function useLiveKitAvatar(
 
   useEffect(() => {
     if (!enabled) return;
-
     const release = retainLiveKitAvatarSession(sessionId);
     const unsubscribe = subscribeLiveKitAvatarSession(sessionId, setSnapshot);
-
     return () => {
       unsubscribe();
       release();
@@ -47,22 +45,18 @@ export function useLiveKitAvatar(
     [enabled, sessionId]
   );
 
-  const publishRecoveryAudio = useCallback(
-    async (audioUrl: string) => {
+  const publishSpeakText = useCallback(
+    async (text: string) => {
       if (!enabled) return;
-      publishLiveKitAvatarAudio(sessionId, audioUrl);
+      publishLiveKitAvatarSpeak(sessionId, text);
     },
     [enabled, sessionId]
   );
 
-  const disconnect = useCallback(() => {
-    /* teardown is ref-counted via retain/release */
-  }, []);
-
   return {
     ...snapshot,
     attachVideo,
-    publishRecoveryAudio,
-    disconnect,
+    publishSpeakText,
+    disconnect: () => undefined,
   };
 }
