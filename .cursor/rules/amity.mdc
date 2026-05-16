@@ -1,0 +1,52 @@
+---
+description: Amity hackathon — emotional recovery demo app conventions
+globs: **/*
+alwaysApply: true
+---
+
+# Amity Project Rules
+
+## Product
+
+- Amity is **workplace emotional recovery support**, not medical diagnosis or therapy.
+- Never use: diagnose depression, treat mental illness, medical therapy, cure anxiety, detect depression with certainty.
+- Use: emotional recovery, high-pressure workplace signal, private reset, recovery companion, crisis escalation bridge.
+
+## Privacy
+
+- Employee sessions are **private**.
+- Company dashboard: **aggregates only** — no transcripts, confessions, sensitive PII, or medical labels.
+
+## Crisis Safety
+
+If user expresses suicide, self-harm, violence, or immediate danger:
+
+1. Stop normal emotional coaching
+2. Switch to Crisis Safety Mode
+3. Keep user engaged; ask if in immediate danger
+4. Show emergency options; simulate human handoff
+5. Never claim AI alone is sufficient
+
+## Build Style
+
+- **Small tasks** — one focused change per step; keep app working.
+- **Mobile-first** — stack on small screens; Trigger Portal 3-column on desktop only.
+- **TypeScript** — shared types in `types/`; logic in `lib/`.
+- Update `docs/BUILD_PROGRESS.md` after every completed task (status, completed, current, next, blockers, testing).
+
+## Tech
+
+- Next.js App Router, Tailwind, Framer Motion, Recharts, Lucide
+- APIs under `app/api/` — thin handlers delegating to `lib/`
+- Demo triggers via Trigger Simulation Portal — no real wearable/Slack/HR integrations in hackathon
+
+## UI
+
+- Dark premium enterprise SaaS: cards, rounded-2xl, soft borders, subtle gradients
+- Trigger Portal is the hero demo screen
+
+## Do Not
+
+- Build entire app in one pass
+- Expose private session content to dashboard APIs
+- Skip safety classifier before agent responses

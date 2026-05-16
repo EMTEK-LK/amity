@@ -1,0 +1,82 @@
+Amity foundation is in place. No pages, APIs, or integrations were built — only structure, docs, rules, and TypeScript placeholders.
+
+1. Files created
+Documentation (docs/)
+File	Purpose
+PROJECT_PLAN.md
+Vision, flow, stack, privacy, safety copy
+BUILD_PROGRESS.md
+Living build tracker (updated for this step)
+API_PLAN.md
+Planned route handlers and env vars
+UI_PLAN.md
+Design system, routes, Trigger Portal layout
+DEMO_SCRIPT.md
+5–7 min hackathon walkthrough
+CURSOR_TASKS.md
+Phased task queue for Cursor
+Cursor rules
+File	Purpose
+.cursor/rules/amity.mdc
+Product, privacy, crisis, build, and UI conventions
+Types (types/)
+File	Covers
+employee.ts
+Employee, emotional digital twin, snapshot
+trigger.ts
+Categories, payloads, simulation results
+emotion.ts
+States, stress, risk assessment, deltas
+session.ts
+Recovery sessions, summaries, orchestrator
+crisis.ts
+Safety mode, escalation, demo phrases
+index.ts
+Barrel exports
+Library placeholders (lib/)
+File	Status
+demo-store.ts
+Throws until Phase 2
+signal-engine.ts
+Throws until Phase 2
+risk-engine.ts
+Throws until Phase 2
+gemini.ts
+Throws until Phase 4
+elevenlabs.ts
+Throws until Phase 4
+beyond-presence.ts
+Throws until Phase 4
+safety-classifier.ts
+Stub + crisis keyword list
+utils.ts
+cn, formatIso, clamp (no extra deps yet)
+Route & component folders (.gitkeep only)
+app/dashboard/, trigger-portal/, recovery-room/, summary/, crisis/
+app/api/employees/, triggers/, recovery-sessions/, agent/, voice/, safety/, crisis/, analytics/
+components/layout/, dashboard/, trigger/, recovery/, crisis/, ui/
+2. What was updated
+docs/BUILD_PROGRESS.md — marked foundation complete; next step set to Next.js app shell.
+3. Issues / notes
+Item	Detail
+No package.json
+Intentional — app is not runnable until Step 2
+Lib stubs throw
+Calling getDemoStore() etc. will error until implemented
+@/ path alias
+Not configured yet; lib uses relative imports (../types/...)
+cn() utility
+Simple join for now; clsx + tailwind-merge come with Next.js setup
+No blockers for the next step.
+
+4. Exact next recommended step
+Step 2: Next.js app shell (from docs/CURSOR_TASKS.md / BUILD_PROGRESS.md)
+
+Run create-next-app in this repo (App Router, TypeScript, Tailwind, ESLint).
+Install framer-motion, recharts, lucide-react.
+Set dark-first theme tokens in Tailwind.
+Add app/layout.tsx + minimal app/page.tsx (simple entry, not full landing).
+Add components/layout/ shell (header, nav stubs).
+Add .env.example for API keys (no secrets committed).
+Update docs/BUILD_PROGRESS.md.
+When you want to proceed, say “Step 2” or “Initialize Next.js” and we’ll do that in one focused pass.
