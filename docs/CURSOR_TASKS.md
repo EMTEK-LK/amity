@@ -63,7 +63,36 @@ Work **one task at a time**. Update `docs/BUILD_PROGRESS.md` after each.
 - [x] Shared context, signal status, safety + crisis routing
 - [x] Session controls + Trigger Demo context bridge
 
-## Phase 6 — Mock API routes & demo store
+## Phase 5b — Facial awareness (face-api.js) ✅
+
+- [x] `face-api.js` + `lib/browser/face-awareness-client.ts`
+- [x] `hooks/useFacialAwareness.ts` + `FacialAwarenessPanel`
+- [x] Shared session context facial fields + Recovery Room wiring
+- [x] `buildGeminiSessionContextPayload()` (summaries only)
+- [x] `docs/FACIAL_AWARENESS.md` + model download script
+
+## Phase 5.2 — Recovery agent pipeline ✅
+
+- [x] Improved face detection (416 / 0.35 threshold)
+- [x] `useMicrophonePermission` + `useSpeechTranscript`
+- [x] `POST /api/agent/respond` + client helper
+- [x] `generateAmityRecoveryResponse` + `generateAmityVoice`
+- [x] Recovery Room wired end-to-end
+- [x] `docs/GEMINI_LIVE_PLAN.md`
+
+## Phase 6A — Gemini text pipeline ✅
+
+- [x] Text-only `/api/agent/respond` (ElevenLabs disabled)
+- [x] Face + transcript in Gemini payload
+- [x] Provider badges + context preview
+- [x] `/api/agent/test`
+
+## Phase 7 — ElevenLabs voice
+
+- [ ] Re-enable `generateAmityVoice` after agent respond
+- [ ] Audio playback in VoiceOutputPanel
+
+## Phase 8 — Mock API routes & demo store
 
 - [ ] Implement `lib/demo-store.ts` (Sarah baseline)
 - [ ] Implement `lib/signal-engine.ts` / `lib/risk-engine.ts` (server-side)

@@ -1,5 +1,5 @@
 import type { UserConsent } from './consent';
-import type { FacialAwarenessSignal } from './facial-awareness';
+import type { FacialAwarenessSignal, FacialSignalQuality } from './facial-awareness';
 import type { RecommendedAction, TriggerRiskLevel, TriggerSource } from './trigger';
 import type { VoiceSessionState, VoiceState } from './voice';
 
@@ -24,13 +24,18 @@ export interface SharedSessionContext {
   sessionId: string;
   employeeId: string;
   role: SessionRole;
-  source: TriggerSource | 'session_init';
+  source: TriggerSource | 'session_init' | SessionPipelineSource;
   consent: UserConsent;
   currentEmotion: string;
   stressLevel: number;
   heartRate: number;
   voiceState: VoiceState;
   facialSignal: FacialAwarenessSignal | null;
+  /** Latest expression confidence 0–1 (indicative, from facial pipeline) */
+  facialConfidence: number | null;
+  facialSignalQuality: FacialSignalQuality | null;
+  /** ISO timestamp of last facial signal update */
+  facialUpdatedAt: string | null;
   engagement: EngagementLevel;
   riskLevel: TriggerRiskLevel;
   safetyLevel: SafetyLevel;
@@ -48,6 +53,9 @@ export interface SessionContextPatch {
   heartRate?: number;
   voiceState?: VoiceState;
   facialSignal?: FacialAwarenessSignal | null;
+  facialConfidence?: number | null;
+  facialSignalQuality?: FacialSignalQuality | null;
+  facialUpdatedAt?: string | null;
   engagement?: EngagementLevel;
   riskLevel?: TriggerRiskLevel;
   safetyLevel?: SafetyLevel;
@@ -55,5 +63,5 @@ export interface SessionContextPatch {
   voiceSession?: VoiceSessionState;
   triggerId?: string;
   triggerType?: string;
-  source?: TriggerSource | 'session_init';
+  source?: TriggerSource | 'session_init' | SessionPipelineSource;
 }

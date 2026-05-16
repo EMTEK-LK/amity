@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { ConsentGate } from '@/components/recovery/ConsentGate';
@@ -13,19 +13,21 @@ import { SignalStatusPanel } from '@/components/recovery/SignalStatusPanel';
 import { SafetyStatusPanel } from '@/components/recovery/SafetyStatusPanel';
 import { QuickModeButtons } from '@/components/recovery/QuickModeButtons';
 import { SessionControls } from '@/components/recovery/SessionControls';
-import { mergeConsent, saveStoredConsent } from '@/lib/consent-manager';
-import { captureFacialSignal } from '@/lib/facial-awareness';
-import { createVoiceSessionSnapshot } from '@/lib/voice-session';
+import { GeminiContextPreview } from '@/components/recovery/GeminiContextPreview';
+import { useRecoveryMediaSession } from '@/hooks/useRecoveryMediaSession';
 import {
-  getDemoResponseForMessage,
-  pickVoiceMode,
-  type RecoveryModeId,
-  type ElevenLabsVoiceMode,
-} from '@/lib/demo-recovery-responses';
+  buildAgentSessionContext,
+  buildGeminiContextPreview,
+} from '@/lib/agent-session-context';
+import { RecoveryAgentError, sendRecoveryAgentMessage } from '@/lib/client/recovery-agent';
+import { mergeConsent, saveStoredConsent } from '@/lib/consent-manager';
+import { createVoiceSessionSnapshot } from '@/lib/voice-session';
+import type { RecoveryModeId } from '@/lib/demo-recovery-responses';
 import { loadRecoveryContext, saveRecoveryContext } from '@/lib/recovery-session-bridge';
 import { prepareRecoverySession } from '@/lib/recovery-orchestrator';
 import { prepareCrisisEscalation } from '@/lib/crisis-escalation';
-import { updateContextFromVoiceSignal } from '@/lib/session-context';
+import { updateContextFromFacialSignal, updateContextFromVoiceSignal } from '@/lib/session-context';
+import type { AgentMessageSource, GeminiProviderStatus } from '@/types/agent';
 import type { SharedSessionContext } from '@/types/session-context';
 import type {
   AvatarStatus,
@@ -33,8 +35,6 @@ import type {
   RecoverySafetyState,
   RecoverySessionStatus,
 } from '@/types/recovery-room';
-import { generateSupportResponse } from '@/lib/gemini';
-import { synthesizeRecoveryVoice } from '@/lib/elevenlabs';
 
 function newMessage(role: 'user' | 'assistant', content: string): ConversationMessage {
   return {
@@ -56,151 +56,275 @@ function modeLabel(mode: RecoveryModeId): string {
   return labels[mode];
 }
 
+function formatAssistantMessage(response: string, nextQuestion?: string | null): string {
+  if (!nextQuestion) return response;
+  return `${response}\n\n${nextQuestion}`;
+}
+
+const AUTO_SEND_DEBOUNCE_MS = 2000;
+
 export default function RecoveryPage() {
+  const session = useRecoveryMediaSession();
+
   const [consentAccepted, setConsentAccepted] = useState(false);
-  const [cameraEnabled, setCameraEnabled] = useState(false);
-  const [micEnabled, setMicEnabled] = useState(false);
-  const [sessionStarted, setSessionStarted] = useState(false);
-  const [paused, setPaused] = useState(false);
-  const [sessionStatus, setSessionStatus] = useState<RecoverySessionStatus>('consent');
   const [selectedMode, setSelectedMode] = useState<RecoveryModeId>('talk_it_out');
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [context, setContext] = useState<SharedSessionContext>(() => loadRecoveryContext());
   const [safetyState, setSafetyState] = useState<RecoverySafetyState>('normal');
-  const [voiceMode, setVoiceMode] = useState<ElevenLabsVoiceMode>('calm_supportive');
-  const [avatarStatus, setAvatarStatus] = useState<AvatarStatus>('ready');
-  const [lastResponse, setLastResponse] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const crisis = safetyState === 'crisis' || sessionStatus === 'crisis';
+  const [sending, setSending] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [draftMessage, setDraftMessage] = useState('');
+  const [agentError, setAgentError] = useState<string | null>(null);
+  const [geminiProvider, setGeminiProvider] = useState<GeminiProviderStatus | null>(null);
+  const [geminiPreview, setGeminiPreview] = useState<Record<string, unknown> | null>(null);
+
+  const crisis = safetyState === 'crisis' || session.sessionState === 'crisis';
+  const lastAutoSentRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
+
+  const sessionStatus: RecoverySessionStatus = crisis
+    ? 'crisis'
+    : paused
+      ? 'paused'
+      : consentAccepted
+        ? 'active'
+        : 'consent';
+
+  const avatarStatus: AvatarStatus = crisis
+    ? 'crisis'
+    : session.sessionState === 'processing' || session.sessionState === 'responding'
+      ? 'responding'
+      : session.sessionState === 'active_listening' && !paused
+        ? 'listening'
+        : 'ready';
+
+  // Camera signal → shared context
+  useEffect(() => {
+    if (!session.facialSignal || !session.withCamera) return;
+    if (session.facialSignal.signalQuality === 'unavailable') return;
+    setContext((prev) => {
+      const next = updateContextFromFacialSignal(prev, session.facialSignal);
+      saveRecoveryContext(next);
+      return next;
+    });
+  }, [session.facialSignal, session.withCamera]);
+
+  // Live transcript preview into the draft (not yet sent)
+  useEffect(() => {
+    const combined = [session.transcript, session.interimTranscript]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    if (combined && session.sessionState === 'active_listening') {
+      setDraftMessage(combined);
+    }
+  }, [session.transcript, session.interimTranscript, session.sessionState]);
 
   useEffect(() => {
-    if (!sessionStarted || paused || crisis) return;
+    if (!consentAccepted || paused || crisis) return;
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
     return () => clearInterval(t);
-  }, [sessionStarted, paused, crisis]);
+  }, [consentAccepted, paused, crisis]);
 
-  const applyConsent = useCallback((withCamera: boolean) => {
-    const consent = mergeConsent(context.consent, {
-      cameraEnabled: withCamera,
-      microphoneEnabled: true,
-      facialAwarenessEnabled: withCamera,
-      voiceAnalysisEnabled: true,
-      crisisEscalationEnabled: true,
-    });
-    setCameraEnabled(withCamera);
-    setMicEnabled(true);
-    setConsentAccepted(true);
-    setSessionStatus('active');
-    setSessionStarted(true);
-
-    let ctx: SharedSessionContext = { ...context, consent };
-    const facial = captureFacialSignal({
-      consent,
-      expressionHint: withCamera ? 'neutral' : undefined,
-      simulated: true,
-    });
-    const voice = createVoiceSessionSnapshot({
-      consent,
-      voiceStateHint: 'calm',
-      simulated: true,
-    });
-    if (facial) ctx = { ...ctx, facialSignal: facial };
-    if (voice) ctx = updateContextFromVoiceSignal(ctx, voice);
-
-    const plan = prepareRecoverySession(ctx);
-    setContext(ctx);
-    saveRecoveryContext(ctx);
-    saveStoredConsent(consent);
-    setVoiceMode(plan.elevenLabsVoiceMode as ElevenLabsVoiceMode);
-    setAvatarStatus('ready');
-    setMessages([
-      newMessage(
-        'assistant',
-        'Welcome back. This is your private recovery space. Share what feels heavy, or choose a quick message below.'
-      ),
-    ]);
-  }, [context]);
+  const activateCrisis = useCallback(
+    (ctx: SharedSessionContext, responseText: string) => {
+      prepareCrisisEscalation(ctx);
+      const crisisCtx: SharedSessionContext = {
+        ...ctx,
+        safetyLevel: 'crisis',
+        riskLevel: 'crisis',
+        recommendedAction: 'crisis_safety_flow',
+      };
+      setContext(crisisCtx);
+      setSafetyState('crisis');
+      setGeminiProvider('safety');
+      session.markCrisis();
+      setMessages((prev) => [...prev, newMessage('assistant', responseText)]);
+      saveRecoveryContext(crisisCtx);
+    },
+    [session]
+  );
 
   const handleSend = useCallback(
-    async (text: string) => {
-      if (!sessionStarted || paused) return;
+    async (text: string, source: AgentMessageSource) => {
+      const trimmed = text.trim();
+      if (!consentAccepted || paused || sending || crisis || !trimmed) return;
 
-      setMessages((prev) => [...prev, newMessage('user', text)]);
-      setAvatarStatus('listening');
+      setAgentError(null);
+      setMessages((prev) => [...prev, newMessage('user', trimmed)]);
+      setSending(true);
+      session.markProcessing();
 
-      const demo = getDemoResponseForMessage(text, selectedMode);
-      setVoiceMode(demo.voiceMode);
+      const ctx = { ...context };
+      const transcript =
+        source === 'voice_transcript'
+          ? trimmed
+          : [session.transcript, trimmed].filter(Boolean).join(' ').trim() || undefined;
 
-      let ctx = { ...context };
-      if (demo.crisis) {
-        prepareCrisisEscalation(ctx);
-        const crisisCtx: SharedSessionContext = {
-          ...ctx,
-          safetyLevel: 'crisis',
-          riskLevel: 'crisis',
-          recommendedAction: 'crisis_safety_flow',
-        };
-        setContext(crisisCtx);
-        setSafetyState('crisis');
-        setSessionStatus('crisis');
-        setAvatarStatus('crisis');
-        setLastResponse(demo.text);
-        setMessages((prev) => [...prev, newMessage('assistant', demo.text)]);
-        saveRecoveryContext(crisisCtx);
-        return;
-      }
-
-      setAvatarStatus('responding');
-      const gemini = await generateSupportResponse({
-        context: text,
-        sessionContext: ctx,
+      const sessionPayload = buildAgentSessionContext(ctx, {
+        transcript,
+        facialEnabled: session.withCamera,
+        facialStatus: session.facialStatus,
+        facialSignal: session.facialSignal,
+        selectedRecoveryMode: selectedMode,
       });
-      const responseText = demo.text || gemini.supportText;
 
-      ctx = {
-        ...ctx,
-        stressLevel: Math.max(20, ctx.stressLevel - 4),
-        voiceState: 'calm',
+      setGeminiPreview(
+        buildGeminiContextPreview(trimmed, sessionPayload, {
+          source,
+          cameraStatus: session.cameraStatus,
+          micStatus: session.microphoneStatus,
+        })
+      );
+
+      try {
+        const result = await sendRecoveryAgentMessage({
+          sessionId: ctx.sessionId,
+          employeeId: ctx.employeeId,
+          userMessage: trimmed,
+          source,
+          sessionContext: sessionPayload,
+          selectedRecoveryMode: selectedMode,
+        });
+
+        session.markResponding();
+        setGeminiProvider(result.provider.gemini);
+        if (result.geminiContextPreview) setGeminiPreview(result.geminiContextPreview);
+
+        const assistantText = formatAssistantMessage(result.response, result.nextQuestion);
+
+        if (result.crisis) {
+          activateCrisis(ctx, assistantText);
+          return;
+        }
+
+        const nextCtx: SharedSessionContext = {
+          ...ctx,
+          stressLevel: Math.max(20, ctx.stressLevel - 4),
+          voiceState: 'calm',
+          safetyLevel: 'normal',
+          recommendedAction:
+            (result.recommendedAction as SharedSessionContext['recommendedAction']) ??
+            ctx.recommendedAction,
+        };
+        setContext(nextCtx);
+        saveRecoveryContext(nextCtx);
+        setMessages((prev) => [...prev, newMessage('assistant', assistantText)]);
+        session.markActive();
+
+        if (nextCtx.stressLevel > 60) setSafetyState('recovery_needed');
+        else if (nextCtx.stressLevel > 40) setSafetyState('elevated');
+        else setSafetyState('normal');
+      } catch (err) {
+        setAgentError(err instanceof Error ? err.message : 'Could not reach Amity agent');
+        if (err instanceof RecoveryAgentError && err.geminiProvider) {
+          setGeminiProvider(err.geminiProvider);
+        }
+        session.markActive();
+      } finally {
+        setSending(false);
+        setDraftMessage('');
+      }
+    },
+    [
+      activateCrisis,
+      consentAccepted,
+      context,
+      crisis,
+      paused,
+      selectedMode,
+      sending,
+      session,
+    ]
+  );
+
+  // Auto-send finalized speech segments (debounced + de-duplicated)
+  useEffect(() => {
+    if (!consentAccepted || paused || crisis || sending) return;
+    const history = session.finalTranscriptHistory;
+    if (history.length === 0) return;
+    const latest = history[history.length - 1]?.trim();
+    if (!latest) return;
+    const now = Date.now();
+    const last = lastAutoSentRef.current;
+    if (latest === last.text) return;
+    if (now - last.at < AUTO_SEND_DEBOUNCE_MS) return;
+    lastAutoSentRef.current = { text: latest, at: now };
+    void handleSend(latest, 'voice_transcript');
+  }, [
+    session.finalTranscriptHistory,
+    consentAccepted,
+    paused,
+    crisis,
+    sending,
+    handleSend,
+  ]);
+
+  const applyConsent = useCallback(
+    (withCamera: boolean) => {
+      const consent = mergeConsent(context.consent, {
+        cameraEnabled: withCamera,
+        microphoneEnabled: true,
+        facialAwarenessEnabled: withCamera,
+        voiceAnalysisEnabled: true,
+        crisisEscalationEnabled: true,
+      });
+      setConsentAccepted(true);
+      setPaused(false);
+
+      let ctx: SharedSessionContext = {
+        ...context,
+        consent,
+        facialSignal: null,
+        facialConfidence: null,
+        facialSignalQuality: null,
+        facialUpdatedAt: null,
       };
+      const voice = createVoiceSessionSnapshot({
+        consent,
+        voiceStateHint: 'calm',
+        simulated: true,
+      });
+      if (voice) ctx = updateContextFromVoiceSignal(ctx, voice);
+
+      prepareRecoverySession(ctx);
       setContext(ctx);
       saveRecoveryContext(ctx);
-
-      await synthesizeRecoveryVoice({ text: responseText, voiceMode: demo.voiceMode });
-
-      setLastResponse(responseText);
-      setMessages((prev) => [...prev, newMessage('assistant', responseText)]);
-      setAvatarStatus('ready');
-
-      if (ctx.stressLevel > 60) setSafetyState('recovery_needed');
-      else if (ctx.stressLevel > 40) setSafetyState('elevated');
-      else setSafetyState('normal');
-      setVoiceMode(pickVoiceMode(false, ctx.stressLevel));
+      saveStoredConsent(consent);
+      setMessages([
+        newMessage(
+          'assistant',
+          'Welcome back. This is your private recovery space. Speak when you are ready, or type below.'
+        ),
+      ]);
+      session.startSession({ withCamera });
     },
-    [context, paused, selectedMode, sessionStarted]
+    [context, session]
   );
 
   const handleReset = () => {
     const fresh = loadRecoveryContext();
     setContext(fresh);
     setConsentAccepted(false);
-    setCameraEnabled(false);
-    setMicEnabled(false);
-    setSessionStarted(false);
     setPaused(false);
-    setSessionStatus('consent');
     setMessages([]);
     setSafetyState('normal');
-    setAvatarStatus('ready');
-    setLastResponse(null);
     setElapsed(0);
-    setVoiceMode('calm_supportive');
+    setDraftMessage('');
+    setAgentError(null);
+    setGeminiProvider(null);
+    setGeminiPreview(null);
+    session.stopSession();
   };
+
+  const cameraActive = session.withCamera && session.cameraStatus === 'active';
+  const micActive = session.microphoneStatus === 'granted';
 
   if (!consentAccepted) {
     return (
       <PageContainer className="pb-10">
         <RecoveryHeader
-          sessionMode="Awaiting consent"
+          sessionMode="Ready to start"
           sessionStatus="consent"
           safetyState="normal"
         />
@@ -230,14 +354,23 @@ export default function RecoveryPage() {
         safetyState={safetyState}
       />
 
+      {(agentError || session.errorMessage) && (
+        <p
+          className="mt-4 rounded-lg border border-[var(--amity-danger)]/30 bg-[var(--amity-danger-muted)] px-3 py-2 text-sm text-[var(--amity-danger)]"
+          role="status"
+        >
+          {agentError ?? session.errorMessage}
+        </p>
+      )}
+
       <div className="mt-6 grid gap-6 lg:grid-cols-12 lg:gap-8">
         <div className="space-y-4 lg:col-span-7 xl:col-span-8">
           <AvatarSessionPanel
             status={avatarStatus}
-            cameraEnabled={cameraEnabled}
-            micEnabled={micEnabled}
+            cameraEnabled={cameraActive}
+            micEnabled={micActive}
             elapsedSeconds={elapsed}
-            sessionActive={sessionStarted && !paused}
+            sessionActive={consentAccepted && !paused}
           />
           <QuickModeButtons
             selected={selectedMode}
@@ -247,24 +380,38 @@ export default function RecoveryPage() {
           <ConversationPanel
             messages={messages}
             crisis={crisis}
-            disabled={!sessionStarted || paused}
-            onSend={handleSend}
+            disabled={!consentAccepted || paused}
+            sending={sending || session.sessionState === 'processing'}
+            onSend={(text) => handleSend(text, 'typed_input')}
+            speechSupported={session.speechSupported}
+            speechListening={session.sessionState === 'active_listening' && !paused}
+            speechHint={session.speechMessage}
+            draftValue={draftMessage}
+            onDraftChange={setDraftMessage}
+            geminiProvider={geminiProvider}
+            transcriptPreview={
+              session.interimTranscript || session.transcript
+                ? [session.transcript, session.interimTranscript].filter(Boolean).join(' ')
+                : null
+            }
           />
           <div className="lg:hidden">
-            <VoiceOutputPanel
-              voiceMode={voiceMode}
-              lastResponse={lastResponse}
-              crisis={crisis}
-            />
+            <VoiceOutputPanel />
           </div>
           <div className="lg:hidden">
             <SessionControls
-              sessionStarted={sessionStarted}
+              sessionStarted={consentAccepted}
               paused={paused}
               crisis={crisis}
-              onStart={() => setSessionStarted(true)}
-              onPause={() => setPaused(true)}
-              onResume={() => setPaused(false)}
+              onStart={() => setPaused(false)}
+              onPause={() => {
+                setPaused(true);
+                session.pauseSession();
+              }}
+              onResume={() => {
+                setPaused(false);
+                session.resumeSession();
+              }}
               onReset={handleReset}
               onComplete={() => {}}
             />
@@ -274,37 +421,56 @@ export default function RecoveryPage() {
         <aside className="space-y-4 lg:col-span-5 xl:col-span-4">
           <div className="hidden lg:block">
             <SessionControls
-              sessionStarted={sessionStarted}
+              sessionStarted={consentAccepted}
               paused={paused}
               crisis={crisis}
-              onStart={() => setSessionStarted(true)}
-              onPause={() => setPaused(true)}
-              onResume={() => setPaused(false)}
+              onStart={() => setPaused(false)}
+              onPause={() => {
+                setPaused(true);
+                session.pauseSession();
+              }}
+              onResume={() => {
+                setPaused(false);
+                session.resumeSession();
+              }}
               onReset={handleReset}
               onComplete={() => {}}
             />
           </div>
-          <SharedContextPanel context={context} />
+          <SharedContextPanel
+            context={context}
+            facialEnabled={session.withCamera}
+            facialVideoRef={session.videoRef}
+            facialStatus={session.facialStatus}
+            facialSignal={session.facialSignal}
+            facialError={session.errorMessage}
+            geminiProvider={geminiProvider}
+          />
+          <GeminiContextPreview
+            preview={geminiPreview}
+            geminiProvider={geminiProvider ?? undefined}
+          />
           <SignalStatusPanel
             context={context}
-            cameraEnabled={cameraEnabled}
-            micEnabled={micEnabled}
-            sessionStarted={sessionStarted}
+            cameraEnabled={cameraActive}
+            micEnabled={micActive}
+            micStatus={session.microphoneStatus}
+            cameraStatus={session.cameraStatus}
+            transcriptStatus={session.transcriptStatus}
+            sessionStarted={consentAccepted}
+            facialStatus={session.facialStatus}
+            geminiProvider={geminiProvider}
           />
           <SafetyStatusPanel safetyState={safetyState} crisis={crisis} />
           <div className="hidden lg:block">
-            <VoiceOutputPanel
-              voiceMode={voiceMode}
-              lastResponse={lastResponse}
-              crisis={crisis}
-            />
+            <VoiceOutputPanel />
           </div>
         </aside>
       </div>
 
       <p className="mt-6 text-center text-xs text-[var(--amity-text-muted)]">
-        Your recovery conversation stays private. Company dashboards only use aggregated
-        wellbeing signals.
+        Summarized transcript and facial cues only are sent to Gemini — never raw camera video or
+        mic audio.
       </p>
     </PageContainer>
   );

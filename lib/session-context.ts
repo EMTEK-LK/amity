@@ -30,6 +30,9 @@ export function createInitialSessionContext(
     heartRate: 68,
     voiceState: 'calm',
     facialSignal: null,
+    facialConfidence: null,
+    facialSignalQuality: null,
+    facialUpdatedAt: null,
     engagement: 'medium',
     riskLevel: 'low',
     safetyLevel: 'normal',
@@ -91,6 +94,12 @@ export function updateContextFromTrigger(
   return next;
 }
 
+function facialEngagementToSession(
+  engagement: FacialAwarenessSignal['engagement']
+): SharedSessionContext['engagement'] {
+  return engagement as SharedSessionContext['engagement'];
+}
+
 export function updateContextFromFacialSignal(
   ctx: SharedSessionContext,
   signal: FacialAwarenessSignal | null
@@ -99,8 +108,11 @@ export function updateContextFromFacialSignal(
 
   const next = applyPatch(ctx, {
     facialSignal: signal,
-    engagement: signal.engagement,
-    source: ctx.source === 'session_init' ? 'manual' : ctx.source,
+    facialConfidence: signal.confidence,
+    facialSignalQuality: signal.signalQuality,
+    facialUpdatedAt: signal.capturedAt,
+    engagement: facialEngagementToSession(signal.engagement),
+    source: 'facial',
   });
 
   const risk = calculateSessionRisk(next);

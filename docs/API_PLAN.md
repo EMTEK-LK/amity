@@ -8,7 +8,7 @@ Next.js Route Handlers under `app/api/`. Demo uses in-memory `demo-store` and **
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /api/session/context` | Merge trigger / facial / voice into shared context |
+| `POST /api/session/context` | Merge trigger / facial / voice into shared context (facial: summarized fields only — never video frames) |
 | `GET /api/session/context` | Employee-private session state |
 | `POST /api/session/recover` | Run `prepareRecoverySession()` |
 | `POST /api/session/crisis` | Run `prepareCrisisEscalation()` |
@@ -47,10 +47,26 @@ Next.js Route Handlers under `app/api/`. Demo uses in-memory `demo-store` and **
 - Start session (orchestrator → Beyond Presence room config)
 - End session → trigger summary generation
 
-### `POST /api/agent`
+### `POST /api/agent/respond` ✅ (Step 6A/6B — text only)
 
-- Gemini: emotional support response, session summary
-- Input: context, risk level, trigger category (no full transcript to analytics)
+- **Request:** `userMessage`, `sessionId`, `employeeId`, `source` (`voice_transcript` | `typed_input`, Step 6B), `sessionContext` (summarized stress, HR, voice, **transcript text**, facial expression/confidence/engagement/quality, risk, safety, recovery mode)
+- **Shared route:** both auto-sent live transcript segments and the typed chatbot fallback call this endpoint
+- **Flow:** `classifySafety()` → crisis short-circuit OR `generateAmityRecoveryResponse()` (no ElevenLabs in Step 6A/6B)
+- **No mock fallback (Step 6A):** `GEMINI_API_KEY` is required
+- **Response (2xx):** `response`, `safetyLevel`, `recommendedAction`, `nextQuestion`, `provider.gemini` (`real` | `safety`), `provider.voice` (`disabled`), `receivedContext`, `geminiContextPreview`
+- **Error 400 (missing key):** `{ "error": "GEMINI_API_KEY_MISSING", "message": "...", "provider": { "gemini": "not_configured", "voice": "disabled" } }`
+- **Error 502 (request failed):** `{ "error": "GEMINI_REQUEST_FAILED", "message": "...", "provider": { "gemini": "error", "voice": "disabled" } }`
+- **Never:** raw webcam frames, images, or mic audio
+
+### `POST /api/agent/test` ✅
+
+- Body: `{ "message": "..." }` — tests Gemini adapter with demo session context
+- Returns (2xx): `{ "response", "provider": { "gemini": "real" | "safety", "voice": "disabled" }, "recommendedAction", "nextQuestion" }`
+- Same error contract as `/api/agent/respond` — no mock fallback
+
+### `POST /api/agent` (future aliases)
+
+- May wrap the same handler for batch/summary endpoints
 
 ### `POST /api/voice`
 

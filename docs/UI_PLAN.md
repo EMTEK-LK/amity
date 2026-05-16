@@ -74,12 +74,18 @@ No horizontal scroll. Padding bottom for sticky CTA.
 
 - **Future Video Signal** and **Critical Self-Harm Risk** → Crisis Mode, score 100, CTA routes to `/user/crisis`, coaching paused copy shown.
 
-### Recovery Room (`/user/recovery`) ✅
+### Recovery Room (`/user/recovery`) ✅ (Step 6B — unified live session)
 
-- Consent gate → avatar panel → quick modes → conversation → side panels
-- Mobile: stacked; sticky session controls on mobile column
-- Desktop: main column (avatar + chat) + sidebar (context, signals, safety, voice)
-- Crisis sample stops coaching UI; routes to `/user/crisis`
+- Consent gate → **one Start live recovery session action** (camera + mic together) → avatar panel → quick modes → session conversation → side panels
+- Unified media via `useRecoveryMediaSession` (session states: idle / requesting_permissions / active_listening / processing / responding / paused / crisis / ended / error)
+- **Large main panel:** **avatar output** (placeholder) — labeled clearly, never the webcam
+- **Local facial awareness:** compact signal card in session context; session controls it (no separate enable button); “models missing” / “no face” degrade gracefully
+- **Session conversation:** typed chatbot is always available; final Web Speech segments auto-send (debounced, de-duplicated). Both paths → `POST /api/agent/respond` with `source`
+- **Signal status:** camera / microphone / transcript / facial / Gemini / voice (disabled until Step 7)
+- **Gemini context preview:** collapsible; shows message source + camera/mic + summarized payload
+- Mobile: stacked (avatar → controls → conversation → context → signals); no horizontal scroll at 360/390/430
+- Crisis is text/safety-classifier driven only → `/user/crisis`; **never** from facial expression alone
+- Fallbacks: camera denied → voice/text continue; mic denied → text continues; speech unsupported/interrupted → typed chatbot remains; Gemini key missing → setup error (no mock)
 
 ## Component Map
 

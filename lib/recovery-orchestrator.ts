@@ -1,7 +1,11 @@
 import type { SharedSessionContext } from '@/types/session-context';
 import type { RecoveryOrchestrationPlan } from '@/types/session';
+import { buildGeminiSessionContextPayload } from './gemini-session-context';
 import { shouldActivateCrisisMode } from './risk-engine';
 import { prepareCrisisEscalation } from './crisis-escalation';
+
+export { buildGeminiSessionContextPayload } from './gemini-session-context';
+export type { GeminiSessionContextInput } from './gemini-session-context';
 
 /**
  * Prepares recovery layers from shared session context.
@@ -29,7 +33,7 @@ export function prepareRecoverySession(
     layers: {
       gemini: {
         status: 'placeholder',
-        contextSummary: buildGeminiContextPayload(ctx),
+        contextSummary: buildGeminiSessionContextPayload({ ctx }),
       },
       elevenLabs: {
         status: 'placeholder',
@@ -50,19 +54,7 @@ function mapRecoveryMode(ctx: SharedSessionContext): string {
   return 'light_reset';
 }
 
+/** @deprecated Use buildGeminiSessionContextPayload */
 export function buildGeminiContextPayload(ctx: SharedSessionContext): Record<string, unknown> {
-  return {
-    sessionId: ctx.sessionId,
-    employeeId: ctx.employeeId,
-    emotion: ctx.currentEmotion,
-    stressLevel: ctx.stressLevel,
-    heartRate: ctx.heartRate,
-    voiceState: ctx.voiceState,
-    facialExpression: ctx.facialSignal?.expression ?? null,
-    engagement: ctx.engagement,
-    riskLevel: ctx.riskLevel,
-    safetyLevel: ctx.safetyLevel,
-    triggerType: ctx.triggerType ?? null,
-    positioning: 'workplace_emotional_recovery_not_medical',
-  };
+  return buildGeminiSessionContextPayload({ ctx });
 }

@@ -20,7 +20,7 @@ Amity is **workplace wellbeing support** — not a medical or therapy product. I
 
 ## Current Build Status
 
-**Recovery Room UI complete** — consent gate, avatar session, conversation simulation, shared context, voice placeholder, crisis routing at `/user/recovery`. Architecture layers (session context, orchestrator) are in place. Real Gemini Live, ElevenLabs audio, Beyond Presence embed, and face-api.js are **not** wired yet.
+**Recovery Room (Step 6B)** — one **Start live recovery session** action requests camera + microphone together; local **face-api.js** + browser Web Speech transcript feed shared session context. Final speech segments **auto-send** to **`POST /api/agent/respond`** → **Gemini text only**; the typed chatbot is always available as fallback and uses the same route (`source: voice_transcript | typed_input`). **No mock fallback:** `GEMINI_API_KEY` is required; a missing key shows a clear setup error. ElevenLabs is **disabled until Step 7**. Large left panel = avatar output; the small camera signal is local facial awareness. Raw video/audio never sent — summarized cues only; the key stays server-side.
 
 ## Role-Based Demo Architecture
 
@@ -98,7 +98,7 @@ User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Share
 | Pipeline | MVP | Future |
 |----------|-----|--------|
 | **Trigger** | `/user/trigger-demo` — 10 simulated scenarios (wearables, Teams, Slack, calendar, call center, manual, wake word, video/crisis) | Real integrations |
-| **Facial awareness** | Mock broad expression cues when consented — **not diagnosis** | face-api.js (browser, opt-in) |
+| **Facial awareness** | Optional browser face-api.js → summarized cues in session context — **not diagnosis** | `public/models`, `lib/browser/face-awareness-client.ts` |
 | **Voice intelligence** | Mock voice state / transcript snapshot | Gemini Live + WebRTC |
 
 ## Shared session context
@@ -124,16 +124,16 @@ User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Share
 
 | Feature | MVP status |
 |---------|----------------|
-| Consent gate | Mic, optional camera, crisis escalation explained — no browser permission API required |
-| Avatar session | Beyond Presence placeholder with pulse, timer, status chips |
-| Conversation | Sample messages + text input; demo responses via `lib/demo-recovery-responses.ts` |
-| Gemini | Placeholder via `generateSupportResponse()` — not live API |
-| ElevenLabs | Voice preview UI + `synthesizeRecoveryVoice()` placeholder |
-| Facial awareness | Optional, consent-based; simulated visible cues only |
-| Crisis | “I am not safe right now” → crisis mode, coaching paused, link to `/user/crisis` |
-| Context | Carried from Trigger Demo via `sessionStorage` when applicable |
+| Consent gate | Mic + optional camera; facial awareness consent-based |
+| Avatar output (large panel) | Beyond Presence placeholder — **not** the local camera |
+| Facial preview (sidebar) | Local face-api.js; summarized cues in session context only |
+| Conversation | Text + Web Speech transcript → `POST /api/agent/respond` |
+| Gemini | `generateAmityRecoveryResponse()` — real Gemini; **no mock**, requires `GEMINI_API_KEY` (Step 6A) |
+| ElevenLabs | Disabled until Step 7 |
+| Crisis | Safety classifier on user text → crisis mode → `/user/crisis` (never from face alone) |
+| Context | Trigger Demo bridge + live facial/mic summaries |
 
-**Future:** Gemini Live streaming, real ElevenLabs audio, BP embed/lip-sync, face-api.js, WebRTC.
+**Future:** Gemini Live via secure WebSocket relay — see `docs/GEMINI_LIVE_PLAN.md`.
 
 ## Folder structure (core lib)
 
@@ -141,7 +141,9 @@ User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Share
 lib/
   session-context.ts      # Shared context merge + updates
   consent-manager.ts      # Consent defaults and gates
-  facial-awareness.ts     # Optional expression pipeline (placeholder)
+  facial-awareness.ts     # Server-safe mock cues (trigger demo)
+  browser/face-awareness-client.ts  # face-api.js (browser only)
+  gemini-session-context.ts         # buildGeminiSessionContextPayload()
   voice-session.ts          # Voice pipeline (placeholder)
   recovery-orchestrator.ts  # Gemini / ElevenLabs / BP plan
   crisis-escalation.ts      # Crisis path

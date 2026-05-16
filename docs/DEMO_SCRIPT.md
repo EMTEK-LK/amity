@@ -32,10 +32,13 @@
 > "Amity opens a private video recovery room — not therapy, a workplace emotional reset with a recovery companion."
 
 - Open **Recovery Room** (`/user/recovery`) from Trigger Demo
-- Accept consent (or continue without camera)
-- Show avatar placeholder, session context, signal pipelines
-- Send a sample message — demo Amity response + voice preview
-- Tap **Complete session** → summary (when built)
+- Accept consent → **Start live recovery session** (one action: camera + mic together)
+- **Large left** = avatar output; **small** = local facial awareness signal (if camera on)
+- Requires `GEMINI_API_KEY` in `.env.local` (no mock — without a key the panel shows a clear setup error)
+- Speak naturally → final transcript **auto-sends** → **Gemini text response** (badge: Gemini real; voice disabled until Step 7)
+- Or just type in the chatbot — same Gemini route; works even if camera/mic are off
+- Open **Gemini context preview** to show judges the message source + summarized face + transcript payload
+- Try “I am not safe right now” → crisis (from text, not face) → Open Crisis Safety Flow
 
 ## Act 4 — Summary (45s)
 

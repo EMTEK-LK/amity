@@ -49,8 +49,11 @@ See `docs/ARCHITECTURE.md`.
 3. **Demo store** — in-memory state for Sarah + triggers
 4. **Signal + risk engines** — deterministic demo logic
 5. **Trigger Portal UI** — main demo screen
-6. **Recovery room** — Beyond Presence wrapper + session flow
-7. **Gemini agent + safety** — responses + crisis classification
+6. **Recovery room** — Beyond Presence wrapper + session flow ✅
+6b. **Facial awareness (browser)** — face-api.js, consent, local processing ✅
+6c. **Agent respond pipeline** — `/api/agent/respond`, mic/transcript, Gemini + ElevenLabs adapters ✅
+7. **Live API keys** — verify real Gemini + ElevenLabs in dev
+8. **Gemini Live** — WebSocket relay (see `docs/GEMINI_LIVE_PLAN.md`)
 8. **ElevenLabs voice** — TTS for recovery lines
 9. **Summary + analytics** — before/after + company dashboard
 10. **Crisis mode** — escalation UI and handoff simulation
@@ -84,6 +87,8 @@ During a Beyond Presence recovery call, Amity will receive transcript, emotional
 **Avoid:** diagnose, treat mental illness, medical therapy, cure anxiety, detect depression with certainty.
 
 **Use:** emotional recovery, high-pressure workplace signal, private reset, recovery companion, crisis escalation bridge.
+
+**Facial awareness:** Optional face-api.js in the browser (`docs/FACIAL_AWARENESS.md`). Webcam requires consent; only summarized cues enter session context; crisis must combine user text, triggers, and safety classifier — never face alone.
 
 ## Success Criteria (demo)
 

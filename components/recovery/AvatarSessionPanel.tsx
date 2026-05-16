@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, CameraOff, Mic, MicOff, Video } from 'lucide-react';
+import { Camera, CameraOff, Mic, MicOff } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
@@ -17,10 +17,10 @@ interface AvatarSessionPanelProps {
 }
 
 const STATUS_LABEL: Record<AvatarStatus, string> = {
-  ready: 'Ready',
+  ready: 'Ready to start',
   listening: 'Listening',
   responding: 'Responding',
-  crisis: 'Crisis Mode',
+  crisis: 'Crisis mode',
 };
 
 export function AvatarSessionPanel({
@@ -44,6 +44,12 @@ export function AvatarSessionPanel({
 
   return (
     <Card variant="elevated" className="overflow-hidden">
+      <div className="border-b border-[var(--amity-border)] px-4 py-2">
+        <p className="text-xs font-medium text-[var(--amity-text)]">
+          Amity Recovery Guide
+        </p>
+        <p className="text-[10px] text-[var(--amity-text-muted)]">Avatar output</p>
+      </div>
       <div
         className={cn(
           'relative flex aspect-[4/3] max-h-[min(52vh,420px)] flex-col items-center justify-center sm:aspect-video',
@@ -77,7 +83,7 @@ export function AvatarSessionPanel({
           <div>
             <p className="text-sm font-semibold text-[var(--amity-text)]">Amity Recovery Guide</p>
             <p className="mt-1 text-xs text-[var(--amity-text-muted)]">
-              Beyond Presence avatar session · placeholder
+              Avatar lip-sync connects here in production
             </p>
           </div>
           <Badge variant={status === 'crisis' ? 'danger' : 'primary'}>
@@ -107,13 +113,10 @@ export function AvatarSessionPanel({
         <div className="absolute bottom-3 right-3 rounded-lg bg-[var(--amity-overlay)] px-2.5 py-1 text-xs font-medium tabular-nums text-white">
           {mm}:{ss}
         </div>
-
-        <div className="absolute bottom-3 left-3">
-          <Video className="h-4 w-4 text-[var(--amity-text-muted)]" aria-hidden />
-        </div>
       </div>
       <CardContent className="py-3 text-center text-xs text-[var(--amity-text-muted)]">
-        BP video avatar connects here in production. This demo uses a calm visual placeholder.
+        This is the avatar output area. Your local camera signal appears in the session context
+        panel.
       </CardContent>
     </Card>
   );

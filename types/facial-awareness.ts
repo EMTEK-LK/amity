@@ -1,7 +1,8 @@
 /**
  * Optional broad expression awareness — not diagnosis.
- * Browser-side face-api.js planned for production; MVP uses demo/mock signals only.
+ * Browser-side face-api.js when consented; never raw video to Gemini.
  */
+
 export type FacialExpression =
   | 'neutral'
   | 'sad'
@@ -11,18 +12,35 @@ export type FacialExpression =
   | 'uncertain'
   | 'unknown';
 
+export type FacialEngagementLevel = 'high' | 'medium' | 'low';
+
+export type FacialSignalQuality = 'good' | 'fair' | 'poor' | 'unavailable';
+
+/** @deprecated Use FacialSignalQuality */
+export type SignalQuality = FacialSignalQuality;
+
 export type AttentionLevel = 'focused' | 'distracted' | 'unknown';
 
-export type SignalQuality = 'good' | 'fair' | 'poor' | 'unavailable';
+export type FacialAwarenessStatus =
+  | 'idle'
+  | 'loading_models'
+  | 'waiting_for_camera'
+  | 'running'
+  | 'no_face'
+  | 'models_missing'
+  | 'permission_denied'
+  | 'camera_off'
+  | 'paused'
+  | 'error';
 
 export interface FacialAwarenessSignal {
   expression: FacialExpression;
-  /** Model confidence 0–1 — indicative only */
+  /** Model confidence 0–1 — indicative only, not certain */
   confidence: number;
-  engagement: 'high' | 'medium' | 'low';
+  engagement: FacialEngagementLevel;
   attention: AttentionLevel;
-  signalQuality: SignalQuality;
+  signalQuality: FacialSignalQuality;
   capturedAt: string;
-  /** Demo flag — true when signal is simulated */
+  /** True when signal is simulated (trigger demo / mock) */
   simulated?: boolean;
 }
