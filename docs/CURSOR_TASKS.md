@@ -43,39 +43,52 @@ Work **one task at a time**. Update `docs/BUILD_PROGRESS.md` after each.
 - [x] `/admin` demo gate (`app/admin/layout.tsx`)
 - [x] `getDemoIdentityByRole`, `ROLE_LABELS` centralized
 
-## Phase 3 — Demo state & engines
+## Phase 3 — Employee Trigger Demo ✅
+
+- [x] `lib/demo-trigger-scenarios.ts` — 10 scenarios, payload + timeline builders
+- [x] `/user/trigger-demo` — full simulation console
+- [x] Crisis → `/user/crisis`; recovery → `/user/recovery`
+
+## Phase 4 — Architecture ✅
+
+- [x] `SharedSessionContext` + pipeline placeholders
+- [x] Consent, facial awareness, voice session types/libs
+- [x] Recovery orchestrator + crisis escalation
+- [x] Safe lib returns (no throwing stubs)
+- [x] `docs/ARCHITECTURE.md` + README architecture sections
+
+## Phase 5 — Recovery Room UI ✅
+
+- [x] Consent gate, avatar panel, conversation, voice placeholder
+- [x] Shared context, signal status, safety + crisis routing
+- [x] Session controls + Trigger Demo context bridge
+
+## Phase 6 — Mock API routes & demo store
 
 - [ ] Implement `lib/demo-store.ts` (Sarah baseline)
-- [ ] Implement `lib/signal-engine.ts`
-- [ ] Implement `lib/risk-engine.ts`
-- [ ] Wire types to store shape
-
-## Phase 3 — Trigger Portal
-
-- [ ] `/trigger-portal` page + components
-- [ ] Mobile stack + desktop 3-column
+- [ ] Implement `lib/signal-engine.ts` / `lib/risk-engine.ts` (server-side)
 - [ ] `POST /api/triggers` (thin handler → engines)
 
-## Phase 4 — Recovery flow
+## Phase 7 — Real integrations
 
 - [ ] Session orchestrator in demo store
 - [ ] `lib/gemini.ts`, `lib/safety-classifier.ts`
 - [ ] `lib/elevenlabs.ts`, `lib/beyond-presence.ts`
 - [ ] `/recovery-room` + APIs
 
-## Phase 5 — Summary & dashboard
+## Phase 8 — Summary & dashboard
 
 - [ ] `/summary` before/after UI
 - [ ] `/dashboard` Recharts aggregates
 - [ ] `GET /api/analytics`
 
-## Phase 6 — Crisis
+## Phase 9 — Crisis (enhance)
 
 - [ ] Crisis detection in safety classifier
 - [ ] `/crisis` UI + `POST /api/crisis`
 - [ ] Block normal agent path when crisis
 
-## Phase 7 — Polish & deploy
+## Phase 10 — Polish & deploy
 
 - [ ] Demo script walkthrough fixes
 - [ ] Vercel deploy

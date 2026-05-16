@@ -2,20 +2,28 @@ export interface BeyondPresenceRoomConfig {
   sessionId: string;
   employeeId: string;
   agentId?: string;
+  avatarMode?: string;
 }
 
 export interface BeyondPresenceRoom {
   roomId: string;
   embedUrl?: string;
   joinToken?: string;
+  /** MVP embed placeholder */
+  placeholder: boolean;
 }
 
 /**
- * Beyond Presence: video avatar recovery room wrapper.
- * Implementation planned in Phase 4.
+ * Beyond Presence avatar interface (MVP placeholder).
+ * Future: real embed + lip-sync.
  */
 export async function createRecoveryRoom(
-  _config: BeyondPresenceRoomConfig
+  config: BeyondPresenceRoomConfig
 ): Promise<BeyondPresenceRoom> {
-  throw new Error('beyond-presence not implemented — Phase 4');
+  return {
+    roomId: `bp-demo-${config.sessionId}`,
+    embedUrl: undefined,
+    joinToken: undefined,
+    placeholder: true,
+  };
 }

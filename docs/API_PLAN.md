@@ -2,7 +2,16 @@
 
 ## Overview
 
-Next.js Route Handlers under `app/api/`. Demo uses in-memory `demo-store` first; APIs wrap lib modules for client components and future persistence.
+Next.js Route Handlers under `app/api/`. Demo uses in-memory `demo-store` and **`SharedSessionContext`** (`lib/session-context.ts`) first; APIs wrap lib modules for client components and future persistence.
+
+### Planned session endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `POST /api/session/context` | Merge trigger / facial / voice into shared context |
+| `GET /api/session/context` | Employee-private session state |
+| `POST /api/session/recover` | Run `prepareRecoverySession()` |
+| `POST /api/session/crisis` | Run `prepareCrisisEscalation()` |
 
 ## Endpoints (planned)
 
@@ -13,7 +22,24 @@ Next.js Route Handlers under `app/api/`. Demo uses in-memory `demo-store` first;
 
 ### `POST /api/triggers`
 
-- Accept simulated trigger payload from Trigger Portal
+- Accept simulated trigger payload from Employee Trigger Demo (`/user/trigger-demo`)
+- Payload shape (demo preview today in UI):
+
+```json
+{
+  "employeeId": "EMP-001",
+  "source": "microsoft_teams",
+  "triggerType": "manager_conflict",
+  "emotionSignal": "sad_overwhelmed",
+  "stressScore": 84,
+  "heartRate": 118,
+  "riskLevel": "high",
+  "recommendedAction": "start_recovery_session"
+}
+```
+
+- Sources simulated in MVP: `apple_watch`, `whoop`, `microsoft_teams`, `slack`, `whatsapp`, `calendar`, `call_center`, `manual`, `wake_word`, `bp_video_analysis`, `safety_classifier`, `work_pattern`, `crm`
+- Crisis payloads use `recommendedAction: "crisis_safety_flow"`
 - Run signal engine → risk engine → return updated state + recommendation
 
 ### `POST/GET /api/recovery-sessions`

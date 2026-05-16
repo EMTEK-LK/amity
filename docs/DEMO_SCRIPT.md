@@ -15,23 +15,27 @@
 - Point to employee card + wellness ring (green/calm)
 - Risk: **Low** — no action needed
 
-## Act 2 — Simulated trigger (60s)
+## Act 2 — Simulated trigger (90s)
 
-> "In production, signals come from wearables and workplace tools. For the buildathon we use a Trigger Simulation Portal."
+> "In production, signals come from wearables and workplace tools. For the buildathon we use the Employee Trigger Demo — ten realistic scenarios."
 
-- Click **Manager Conflict**
-- Watch HR, stress score, emotion label update
-- Risk engine: **High** → recommends private recovery call
-- Show timeline event + JSON payload (integration preview)
+- Open **Trigger Demo** (`/user/trigger-demo`)
+- Show Sarah Perera context + connected signals (Watch, Work apps, Manual)
+- Click **Manager Conflict** (Microsoft Teams) — stress 84, HR 118, risk high
+- Point to emotional digital twin, risk engine reason, signal timeline
+- Expand **JSON payload** — show future API shape for judges
+- Optionally tap **Customer Escalation** or **Wake Word** to show variety
+- CTA: **Open Recovery Room**
 
 ## Act 3 — Recovery session (90s)
 
 > "Amity opens a private video recovery room — not therapy, a workplace emotional reset with a recovery companion."
 
-- Tap **Start recovery call**
-- Beyond Presence avatar appears
-- Brief Gemini-generated supportive line; ElevenLabs voice
-- Sarah's twin trends toward calmer (demo animation)
+- Open **Recovery Room** (`/user/recovery`) from Trigger Demo
+- Accept consent (or continue without camera)
+- Show avatar placeholder, session context, signal pipelines
+- Send a sample message — demo Amity response + voice preview
+- Tap **Complete session** → summary (when built)
 
 ## Act 4 — Summary (45s)
 
@@ -48,13 +52,14 @@
 - Session count, avg stress reduction, trigger categories by department
 - Explicitly state: no transcripts, no medical labels
 
-## Act 6 — Crisis safety (60s) *(optional but recommended)*
+## Act 6 — Crisis safety (60s) *(recommended)*
 
 > "If someone signals immediate danger, Amity stops coaching and moves to Crisis Safety Mode."
 
-- Type or select crisis demo phrase (e.g. "I want to die")
-- Normal coaching stops
-- Emergency options, simulated human handoff, wellbeing officer escalation
+- In Trigger Demo, select **Future Video Signal** or **Critical Self-Harm Risk**
+- Twin shows Crisis Mode, risk score 100
+- Copy: normal coaching paused, live handoff recommended
+- CTA changes to **Open Crisis Safety Flow** → `/user/crisis`
 - "The AI is not enough — we connect to real help."
 
 ## Closing line

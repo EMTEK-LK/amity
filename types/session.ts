@@ -26,9 +26,32 @@ export interface RecoverySummary {
   triggerCategory: TriggerCategory;
   durationSeconds: number;
   delta: EmotionalDelta;
-  /** Privacy-safe line for employee UI only */
   headline: string;
   completedAt: string;
+}
+
+export interface OrchestrationLayerStatus {
+  status: 'placeholder' | 'ready' | 'blocked' | 'streaming' | 'handoff';
+  contextSummary?: Record<string, unknown>;
+  voiceMode?: string;
+  avatarMode?: string;
+}
+
+/** Output from recovery orchestrator — wires Gemini, ElevenLabs, BP layers */
+export interface RecoveryOrchestrationPlan {
+  sessionId: string;
+  employeeId: string;
+  mode: string;
+  geminiContextReady: boolean;
+  elevenLabsVoiceMode: string;
+  bpAvatarMode: string;
+  nextRoute: string;
+  layers: {
+    gemini: OrchestrationLayerStatus;
+    elevenLabs: OrchestrationLayerStatus;
+    beyondPresence: OrchestrationLayerStatus;
+  };
+  preparedAt: string;
 }
 
 export interface SessionOrchestratorInput {
@@ -39,5 +62,5 @@ export interface SessionOrchestratorInput {
 
 export interface SessionOrchestratorResult {
   session: RecoverySession;
-  roomConfigPlaceholder: Record<string, unknown>;
+  plan: RecoveryOrchestrationPlan;
 }

@@ -9,25 +9,25 @@ Amity is a **video-first AI emotional recovery system** for companies. It helps 
 ## Buildathon Constraints
 
 - 24-hour hackathon scope
-- Demo via **Trigger Simulation Portal** (no real Apple Watch, WHOOP, Teams, Slack, HR integrations)
+- Demo via **Employee Trigger Demo** (`/user/trigger-demo`) — simulates future Apple Watch, WHOOP, Teams, Slack, WhatsApp, calendar, call center, manual, wake word, and BP video/audio signals (no real integrations in MVP)
 - Privacy-first: company sees aggregated analytics only
 - Crisis safety layer required for high-risk language
 
 ## System Flow
 
 ```
-Trigger Portal
-  → Signal Engine
-  → Risk Engine
-  → Smartwatch Emotional Digital Twin
-  → Session Orchestrator
-  → Beyond Presence Recovery Room
-  → Gemini Emotional Agent
-  → ElevenLabs Voice
-  → Recovery Summary
-  → Privacy-safe Analytics
+User Device
+  → Consent + Session Gate
+  → Parallel: Trigger | Facial (optional) | Voice
+  → Shared Session Context
+  → Risk + Safety Engine
+  → Recovery Orchestrator
+  → Gemini + ElevenLabs + Beyond Presence
+  → Recovery Summary + Privacy-safe Analytics
   → Crisis Escalation (if needed)
 ```
+
+See `docs/ARCHITECTURE.md`.
 
 ## Tech Stack
 

@@ -20,7 +20,7 @@ Amity is **workplace wellbeing support** — not a medical or therapy product. I
 
 ## Current Build Status
 
-**Role-based app shell complete** — design system with light/dark themes, reusable components, and full production-quality screens split into a **Company Admin** experience and an **Employee** experience, with role-based navigation and a corrected mobile drawer. Responsive web + mobile. The demo flow is interactive via local state. Real APIs and integrations (Gemini, ElevenLabs, Beyond Presence) are not wired yet.
+**Recovery Room UI complete** — consent gate, avatar session, conversation simulation, shared context, voice placeholder, crisis routing at `/user/recovery`. Architecture layers (session context, orchestrator) are in place. Real Gemini Live, ElevenLabs audio, Beyond Presence embed, and face-api.js are **not** wired yet.
 
 ## Role-Based Demo Architecture
 
@@ -50,13 +50,13 @@ A personal wellbeing space, private to the employee.
 | `/user` | Redirects to the employee dashboard |
 | `/user/dashboard` | Personal wellbeing state and quick actions |
 | `/user/recovery` | Private AI video recovery session |
-| `/user/trigger-demo` | **Trigger Simulation Portal — employee-side only** |
+| `/user/trigger-demo` | **Signal simulation console — employee-side only** (10 scenarios, JSON preview) |
 | `/user/summary` | Private before/after recovery summary |
 | `/user/crisis` | Crisis Safety Mode and human handoff |
 | `/user/profile` | Personal details and preferences |
 | `/user/settings` | Personal privacy / notification / recovery preferences |
 
-The **Trigger Demo belongs to the employee side**. It simulates future signal sources (Apple Watch, WHOOP, Microsoft Teams, Slack, WhatsApp, HR/call-center systems, and in-call video/audio analysis). It is intentionally absent from admin navigation.
+The **Trigger Demo** (`/user/trigger-demo`) is employee-side only. It simulates future signals from wearables (Apple Watch, WHOOP), workplace tools (Microsoft Teams, Slack, WhatsApp, calendar), call center, CRM, manual in-app request, wake word, future BP video/audio analysis, and safety classifier crisis detection. Scenarios are config-driven in `lib/demo-trigger-scenarios.ts`. Crisis scenarios route to `/user/crisis`; others route to `/user/recovery`. JSON payload preview demonstrates future API readiness. No real integrations in MVP.
 
 ### Hardcoded demo identities
 
@@ -81,7 +81,81 @@ Planned (not implemented): during a Beyond Presence recovery call, Amity will re
 
 Old routes redirect into the new structure: `/dashboard → /admin/dashboard`, `/trigger-portal → /user/trigger-demo`, `/recovery-room → /user/recovery`, `/crisis → /user/crisis`. `/summary` offers links to both the employee and company summaries.
 
-See `docs/BUILD_PROGRESS.md` for live progress.
+See `docs/BUILD_PROGRESS.md` and `docs/ARCHITECTURE.md` for live progress.
+
+## Architecture
+
+Amity is a real-time **emotional recovery** platform (not medical, not therapy). Signals flow through consent gates, merge into shared session context, and drive recovery or crisis paths.
+
+```
+User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Shared Session Context
+  → Risk + Safety → Recovery Orchestrator → Gemini + ElevenLabs + Beyond Presence
+  → Summary / Privacy-safe Analytics → Crisis Escalation (if needed)
+```
+
+## Signal pipelines
+
+| Pipeline | MVP | Future |
+|----------|-----|--------|
+| **Trigger** | `/user/trigger-demo` — 10 simulated scenarios (wearables, Teams, Slack, calendar, call center, manual, wake word, video/crisis) | Real integrations |
+| **Facial awareness** | Mock broad expression cues when consented — **not diagnosis** | face-api.js (browser, opt-in) |
+| **Voice intelligence** | Mock voice state / transcript snapshot | Gemini Live + WebRTC |
+
+## Shared session context
+
+`SharedSessionContext` (`types/session-context.ts`) holds sessionId, vitals, emotion, voice state, optional facial signal, engagement, risk, safety level, and recommended action. Updated via `lib/session-context.ts` from each pipeline. See `buildSessionContextFromScenario()` for Trigger Demo bridge.
+
+## MVP vs future scope
+
+**MVP (buildathon):** simulated triggers, rule-based risk, shared context object, recovery/crisis UI placeholders, Gemini/ElevenLabs/BP safe placeholders, privacy-safe admin analytics.
+
+**Future production:** face-api.js, Gemini Live streaming, WebRTC, real BP lip-sync, real wearables and workplace tools, production human handoff, enterprise privacy controls.
+
+## Privacy and safety
+
+- **Facial awareness** is optional and requires explicit consent (`types/consent.ts`)
+- **Employee sessions** stay private — admin sees aggregates only
+- **Crisis mode** stops normal coaching and routes to human escalation simulation
+- No medical diagnosis language; visible cues are indicative only
+
+## Recovery Room
+
+**Route:** `/user/recovery` (employee-only). Legacy `/recovery-room` redirects here.
+
+| Feature | MVP status |
+|---------|----------------|
+| Consent gate | Mic, optional camera, crisis escalation explained — no browser permission API required |
+| Avatar session | Beyond Presence placeholder with pulse, timer, status chips |
+| Conversation | Sample messages + text input; demo responses via `lib/demo-recovery-responses.ts` |
+| Gemini | Placeholder via `generateSupportResponse()` — not live API |
+| ElevenLabs | Voice preview UI + `synthesizeRecoveryVoice()` placeholder |
+| Facial awareness | Optional, consent-based; simulated visible cues only |
+| Crisis | “I am not safe right now” → crisis mode, coaching paused, link to `/user/crisis` |
+| Context | Carried from Trigger Demo via `sessionStorage` when applicable |
+
+**Future:** Gemini Live streaming, real ElevenLabs audio, BP embed/lip-sync, face-api.js, WebRTC.
+
+## Folder structure (core lib)
+
+```
+lib/
+  session-context.ts      # Shared context merge + updates
+  consent-manager.ts      # Consent defaults and gates
+  facial-awareness.ts     # Optional expression pipeline (placeholder)
+  voice-session.ts          # Voice pipeline (placeholder)
+  recovery-orchestrator.ts  # Gemini / ElevenLabs / BP plan
+  crisis-escalation.ts      # Crisis path
+  risk-engine.ts            # Rule-based risk + crisis check
+  signal-engine.ts          # Trigger → twin mapping
+  demo-trigger-scenarios.ts # 10 scenarios + payloads
+  demo-recovery-responses.ts # Conversation + voice mode mapping
+  recovery-session-bridge.ts # sessionStorage context from Trigger Demo
+  demo-store.ts             # In-memory demo state
+  gemini.ts | elevenlabs.ts | beyond-presence.ts  # Layer placeholders
+components/recovery/        # Recovery Room UI panels
+types/
+  consent.ts | session-context.ts | facial-awareness.ts | voice.ts | analytics.ts
+```
 
 ## Design System
 
@@ -165,22 +239,14 @@ API keys can remain empty for early UI-only development steps.
 ## Development Steps
 
 1. Foundation — docs, rules, placeholders
-2. Next.js app shell
-3. **Design system and reusable UI components** *(current)*
-4. Landing page
-5. Company dashboard
-6. Trigger Simulation Portal UI
-7. Smartwatch / wellness circle
-8. Trigger data, JSON preview, Signal Engine, Risk Engine
-9. API routes and demo store
-10. Recovery Room
-11. Gemini integration
-12. ElevenLabs integration
-13. Beyond Presence adapter / avatar frame
-14. Recovery summary
-15. Crisis escalation flow
-16. Mobile polish
-17. Deploy and prepare pitch
+2. Next.js app shell + design system
+3. Role-based admin/employee UI + Trigger Demo console
+4. **Architecture — shared context, pipelines, orchestrator** *(current)*
+5. Recovery Room UI (consent gate, BP placeholder, context panel, Gemini/ElevenLabs placeholders)
+6. Gemini / ElevenLabs / Beyond Presence real integrations
+7. API routes + demo store wiring
+8. Landing page polish
+9. Deploy and pitch
 
 ## Useful Commands
 

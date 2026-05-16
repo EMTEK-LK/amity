@@ -44,23 +44,42 @@ Legacy routes (`/dashboard`, `/trigger-portal`, `/recovery-room`, `/crisis`) red
 - Home is **role-aware**: admin = company overview (Open Company Dashboard); employee = personal recovery (Start Trigger Demo / Open My Dashboard). Employee home never promotes the admin panel.
 - `/admin` while employee-selected → polished "switch to Company Admin" demo notice (not real auth).
 
-## Trigger Portal (hero screen)
+## Employee Trigger Demo (`/user/trigger-demo`) — hero screen
 
-### Mobile (single column)
+**Employee-side only.** Simulates future wearable, workplace, manual, wake word, video, and crisis classifier signals. Config-driven via `lib/demo-trigger-scenarios.ts` (10 scenarios).
 
-1. Employee card
-2. Trigger buttons (large, full width)
-3. Smartwatch / wellness circle + HR + stress + emotion
-4. Risk level + engine decision
-5. Timeline
-6. JSON payload preview (collapsible)
-7. Start recovery CTA
+### Mobile (single column, app-like)
+
+1. Page header + demo notice
+2. Employee context card (Sarah Perera)
+3. Scenario cards (stacked, full width, large tap targets)
+4. Emotional digital twin (wellness ring + vitals)
+5. Risk engine panel
+6. Recovery channels
+7. Sticky bottom CTA (recovery or crisis)
+8. Signal timeline
+9. JSON payload (collapsible accordion)
+
+No horizontal scroll. Padding bottom for sticky CTA.
 
 ### Desktop (3 columns)
 
-| Left | Center | Right |
-|------|--------|-------|
-| Triggers, employee | Smartwatch twin, vitals | Risk engine, timeline, JSON |
+| Left (5/12) | Center (4/12) | Right (3/12) |
+|-------------|---------------|--------------|
+| Employee + 10 scenario cards | Emotional digital twin | Risk engine, channels, CTA, timeline |
+| | | |
+| **Bottom full width:** JSON payload preview | | |
+
+### Crisis scenarios
+
+- **Future Video Signal** and **Critical Self-Harm Risk** → Crisis Mode, score 100, CTA routes to `/user/crisis`, coaching paused copy shown.
+
+### Recovery Room (`/user/recovery`) ✅
+
+- Consent gate → avatar panel → quick modes → conversation → side panels
+- Mobile: stacked; sticky session controls on mobile column
+- Desktop: main column (avatar + chat) + sidebar (context, signals, safety, voice)
+- Crisis sample stops coaching UI; routes to `/user/crisis`
 
 ## Component Map
 
