@@ -6,7 +6,7 @@ import type { MicrophonePermissionStatus } from '@/hooks/useMicrophonePermission
 import type { SpeechTranscriptStatus } from '@/hooks/useSpeechTranscript';
 import type { CameraStatus } from '@/hooks/useRecoveryMediaSession';
 import type { FacialAwarenessStatus } from '@/types/facial-awareness';
-import type { GeminiProviderStatus } from '@/types/agent';
+import type { AgentAudioStatus, GeminiProviderStatus } from '@/types/agent';
 import type { SharedSessionContext } from '@/types/session-context';
 
 interface SignalStatusPanelProps {
@@ -19,6 +19,8 @@ interface SignalStatusPanelProps {
   sessionStarted: boolean;
   facialStatus?: FacialAwarenessStatus;
   geminiProvider?: GeminiProviderStatus | null;
+  voiceStatus?: AgentAudioStatus | null;
+  avatarDisplayMode?: string | null;
 }
 
 interface SignalRow {
@@ -90,6 +92,8 @@ export function SignalStatusPanel({
   sessionStarted,
   facialStatus,
   geminiProvider,
+  voiceStatus,
+  avatarDisplayMode,
 }: SignalStatusPanelProps) {
   const facialLive = context.facialSignal && !context.facialSignal.simulated;
   const facial: SignalRow = cameraEnabled
@@ -151,7 +155,7 @@ export function SignalStatusPanel({
         ? 'Ready'
         : 'Idle',
     source: 'POST /api/agent/respond',
-    detail: 'Text only · voice disabled until Step 7',
+    detail: 'LLM + ElevenLabs voice + BP avatar pipeline',
     variant: geminiProvider === 'real' ? 'primary' : 'neutral',
   };
 
@@ -183,13 +187,37 @@ export function SignalStatusPanel({
 
   const voiceOut: SignalRow = {
     title: 'Voice output',
-    status: 'Disabled',
-    source: 'ElevenLabs',
-    detail: 'Disabled until Step 7',
-    variant: 'neutral',
+    status:
+      voiceStatus === 'ready'
+        ? 'ElevenLabs ready'
+        : voiceStatus === 'mock_ready'
+          ? 'Not configured'
+          : voiceStatus ?? 'Pending',
+    source: 'ElevenLabs TTS',
+    detail:
+      voiceStatus === 'ready'
+        ? 'Plays on each Amity reply'
+        : 'Set ELEVENLABS_API_KEY in .env.local',
+    variant: voiceStatus === 'ready' ? 'primary' : 'neutral',
   };
 
-  const rows = [trigger, camera, voice, transcript, facial, agent, voiceOut];
+  const avatarRow: SignalRow = {
+    title: 'Avatar video',
+    status:
+      avatarDisplayMode === 'livekit'
+        ? 'LiveKit + BP'
+        : avatarDisplayMode === 'iframe'
+          ? 'BP iframe'
+          : 'Stage',
+    source: 'Beyond Presence',
+    detail:
+      avatarDisplayMode === 'livekit'
+        ? 'Lip-sync via speech-to-video'
+        : 'Add LIVEKIT_* for lip-sync',
+    variant: avatarDisplayMode === 'livekit' ? 'primary' : 'neutral',
+  };
+
+  const rows = [trigger, camera, voice, transcript, facial, agent, voiceOut, avatarRow];
 
   return (
     <Card variant="soft">

@@ -1,6 +1,15 @@
-import type { AgentSessionContextPayload } from '@/types/agent';
-import type { SafetyLevel } from '@/types/session-context';
 import { classifySafetySync } from './safety-classifier';
+import { GeminiError, type AmityRecoveryResponseResult } from './llm-types';
+import { generateOpenRouterRecoveryResponse } from './openrouter';
+import {
+  buildFallbackRecoveryResponse,
+  normalizeRecoveryResponse,
+} from './recovery-response-parser';
+import { buildRecoveryPrompt, type AmityRecoveryResponseInput } from './recovery-llm-prompt';
+
+export type { AmityRecoveryResponseResult, GeminiErrorCode } from './llm-types';
+export { GeminiError } from './llm-types';
+export type { AmityRecoveryResponseInput } from './recovery-llm-prompt';
 
 export interface GeminiAgentRequest {
   context: string;
@@ -12,117 +21,119 @@ export interface GeminiAgentResponse {
   streamingReady: boolean;
 }
 
-export interface AmityRecoveryResponseInput {
-  userMessage: string;
-  sessionContext: AgentSessionContextPayload;
-  sessionId: string;
-  employeeId: string;
-  selectedRecoveryMode?: string | null;
-}
+export type LlmProviderMode = 'auto' | 'gemini' | 'openrouter';
 
-export interface AmityRecoveryResponseResult {
-  response: string;
-  safetyLevel: SafetyLevel;
-  recommendedAction: string;
-  nextQuestion: string | null;
-  provider: 'real' | 'safety';
-}
-
-export type GeminiErrorCode = 'GEMINI_API_KEY_MISSING' | 'GEMINI_REQUEST_FAILED';
-
-/**
- * Step 6A: there is no mock fallback. A missing key or failed request
- * throws this so the route can surface a clear setup error in the UI.
- */
-export class GeminiError extends Error {
-  readonly code: GeminiErrorCode;
-  constructor(code: GeminiErrorCode, message: string) {
-    super(message);
-    this.name = 'GeminiError';
-    this.code = code;
-  }
-}
-
-const GEMINI_KEY_MISSING_MESSAGE =
-  'Gemini API key is missing. Add GEMINI_API_KEY to .env.local and restart the dev server.';
+const LLM_KEY_MISSING_MESSAGE =
+  'No LLM API key configured. Add OPENROUTER_API_KEY (free at openrouter.ai/keys) or GEMINI_API_KEY to .env.local, then restart the dev server.';
 const GEMINI_REQUEST_FAILED_MESSAGE =
   'Gemini request failed. Check API key, model name, and server logs.';
+
+type GeminiApiErrorBody = {
+  error?: { code?: number; message?: string; status?: string };
+};
+
+function getLlmProviderMode(): LlmProviderMode {
+  const mode = process.env.AMITY_LLM_PROVIDER?.trim().toLowerCase();
+  if (mode === 'gemini' || mode === 'openrouter' || mode === 'auto') return mode;
+  return 'auto';
+}
+
+function isGeminiQuotaError(message: string): boolean {
+  return (
+    message.includes('quota') ||
+    message.includes('RESOURCE_EXHAUSTED') ||
+    message.includes('rate limit')
+  );
+}
+
+async function messageFromGeminiErrorResponse(res: Response): Promise<string> {
+  const data = (await res.json().catch(() => null)) as GeminiApiErrorBody | null;
+  const code = data?.error?.code;
+  const status = data?.error?.status;
+  const apiMessage = data?.error?.message?.trim();
+
+  if (code === 429 || status === 'RESOURCE_EXHAUSTED') {
+    return 'Gemini API quota exceeded. Wait about a minute and try again, or enable billing in Google AI Studio.';
+  }
+  if (code === 403) {
+    return 'Gemini API key was rejected. Verify GEMINI_API_KEY in .env.local and restart the dev server.';
+  }
+  if (code === 404) {
+    const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.0-flash';
+    return `Gemini model "${model}" was not found. Set GEMINI_MODEL in .env.local to a model your key can access.`;
+  }
+  if (apiMessage) {
+    return apiMessage.length > 240 ? `${apiMessage.slice(0, 240)}…` : apiMessage;
+  }
+  return GEMINI_REQUEST_FAILED_MESSAGE;
+}
 
 const CRISIS_SAFE_RESPONSE =
   "I'm really sorry you're feeling unsafe. Normal coaching is paused, and I'm preparing human support options now.";
 
-function buildPrompt(input: AmityRecoveryResponseInput): string {
-  const ctx = {
-    employeeRole: input.sessionContext.employeeRole ?? 'employee',
-    employeeId: input.employeeId,
-    sessionId: input.sessionId,
-    triggerType: input.sessionContext.triggerType,
+function resultFromRawText(
+  raw: string,
+  input: AmityRecoveryResponseInput
+): AmityRecoveryResponseResult {
+  const normalized = normalizeRecoveryResponse(raw, {
     userMessage: input.userMessage,
-    transcript: input.sessionContext.transcript,
-    stressLevel: input.sessionContext.stressLevel,
-    heartRate: input.sessionContext.heartRate,
-    voiceState: input.sessionContext.voiceState,
-    facialExpression: input.sessionContext.facialExpression,
-    facialConfidence: input.sessionContext.facialConfidence,
-    engagement: input.sessionContext.engagement,
-    facialSignalQuality: input.sessionContext.facialSignalQuality,
-    riskLevel: input.sessionContext.riskLevel,
-    selectedRecoveryMode: input.selectedRecoveryMode ?? input.sessionContext.selectedRecoveryMode,
-    disclaimer:
-      'Facial signal is optional and uncertain — not diagnosis. Prioritize user words over facial signal.',
-  };
-
-  return `You are Amity, a workplace emotional recovery assistant.
-You are NOT a therapist or medical provider.
-You do NOT diagnose.
-You help employees recover from high-pressure work moments.
-Use short, calm, practical responses (2-4 sentences).
-Ask permission before guiding when appropriate.
-Use the facial signal only as a supportive cue, not as proof.
-If the user mentions self-harm, suicide, violence, or immediate danger, stop coaching and recommend crisis escalation.
-
-Session context (summarized only — no images or video):
-${JSON.stringify(ctx, null, 2)}
-
-Respond with JSON only, no markdown:
-{
-  "response": "your supportive reply",
-  "recommendedAction": "guided_reset | breathe_first | prepare_next_step | continue_recovery",
-  "nextQuestion": "optional short follow-up question or null"
-}`;
+    selectedRecoveryMode: input.selectedRecoveryMode,
+  });
+  if (normalized) return normalized;
+  return buildFallbackRecoveryResponse(
+    input.userMessage,
+    input.selectedRecoveryMode ?? input.sessionContext.selectedRecoveryMode
+  );
 }
 
-function parseGeminiJson(text: string): Partial<{
-  response: string;
-  recommendedAction: string;
-  nextQuestion: string | null;
-}> | null {
-  try {
-    const cleaned = text.replace(/```json\s*|\s*```/g, '').trim();
-    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
-    if (typeof parsed.response === 'string') {
-      return {
-        response: parsed.response,
-        recommendedAction:
-          typeof parsed.recommendedAction === 'string' ? parsed.recommendedAction : undefined,
-        nextQuestion:
-          typeof parsed.nextQuestion === 'string'
-            ? parsed.nextQuestion
-            : parsed.nextQuestion === null
-              ? null
-              : undefined,
-      };
-    }
-  } catch {
-    /* use raw text */
+async function generateGeminiRecoveryResponse(
+  input: AmityRecoveryResponseInput
+): Promise<AmityRecoveryResponseResult> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey) {
+    throw new GeminiError('GEMINI_API_KEY_MISSING', LLM_KEY_MISSING_MESSAGE);
   }
-  return null;
+
+  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.0-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: buildRecoveryPrompt(input) }] }],
+        generationConfig: {
+          temperature: 0.65,
+          maxOutputTokens: 320,
+          responseMimeType: 'application/json',
+        },
+      }),
+    });
+  } catch {
+    throw new GeminiError('GEMINI_REQUEST_FAILED', GEMINI_REQUEST_FAILED_MESSAGE);
+  }
+
+  if (!res.ok) {
+    throw new GeminiError('GEMINI_REQUEST_FAILED', await messageFromGeminiErrorResponse(res));
+  }
+
+  const data = (await res.json().catch(() => null)) as {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+  } | null;
+  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+  if (!raw) {
+    throw new GeminiError('GEMINI_REQUEST_FAILED', GEMINI_REQUEST_FAILED_MESSAGE);
+  }
+
+  return resultFromRawText(raw, input);
 }
 
 /**
- * Generates recovery coaching text via the Gemini API. Step 6A: NO mock
- * fallback — a missing key or failed request throws `GeminiError`.
- * Server-side only — never expose GEMINI_API_KEY to the browser.
+ * Recovery coaching text via configured LLM provider(s).
+ * `auto`: Gemini when keyed, else OpenRouter; on Gemini quota errors, falls back to OpenRouter.
+ * Server-side only — never expose API keys to the browser.
  */
 export async function generateAmityRecoveryResponse(
   input: AmityRecoveryResponseInput
@@ -138,62 +149,35 @@ export async function generateAmityRecoveryResponse(
     };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey) {
-    throw new GeminiError('GEMINI_API_KEY_MISSING', GEMINI_KEY_MISSING_MESSAGE);
+  const mode = getLlmProviderMode();
+  const hasGemini = Boolean(process.env.GEMINI_API_KEY?.trim());
+  const hasOpenRouter = Boolean(process.env.OPENROUTER_API_KEY?.trim());
+
+  if (mode === 'openrouter') {
+    return generateOpenRouterRecoveryResponse(input);
   }
 
-  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.0-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: buildPrompt(input) }] }],
-        generationConfig: {
-          temperature: 0.65,
-          maxOutputTokens: 320,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
-  } catch {
-    throw new GeminiError('GEMINI_REQUEST_FAILED', GEMINI_REQUEST_FAILED_MESSAGE);
+  if (mode === 'gemini') {
+    return generateGeminiRecoveryResponse(input);
   }
 
-  if (!res.ok) {
-    throw new GeminiError('GEMINI_REQUEST_FAILED', GEMINI_REQUEST_FAILED_MESSAGE);
+  // auto
+  if (hasGemini) {
+    try {
+      return await generateGeminiRecoveryResponse(input);
+    } catch (err) {
+      if (hasOpenRouter && err instanceof GeminiError && isGeminiQuotaError(err.message)) {
+        return generateOpenRouterRecoveryResponse(input);
+      }
+      throw err;
+    }
   }
 
-  const data = (await res.json().catch(() => null)) as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  } | null;
-  const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!raw) {
-    throw new GeminiError('GEMINI_REQUEST_FAILED', GEMINI_REQUEST_FAILED_MESSAGE);
+  if (hasOpenRouter) {
+    return generateOpenRouterRecoveryResponse(input);
   }
 
-  const parsed = parseGeminiJson(raw);
-  if (parsed?.response) {
-    return {
-      response: parsed.response,
-      safetyLevel: 'normal',
-      recommendedAction: parsed.recommendedAction ?? 'guided_reset',
-      nextQuestion: parsed.nextQuestion ?? null,
-      provider: 'real',
-    };
-  }
-
-  return {
-    response: raw,
-    safetyLevel: 'normal',
-    recommendedAction: 'guided_reset',
-    nextQuestion: null,
-    provider: 'real',
-  };
+  throw new GeminiError('GEMINI_API_KEY_MISSING', LLM_KEY_MISSING_MESSAGE);
 }
 
 export function getCrisisSafeResponseText(): string {

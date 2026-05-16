@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import { SAMPLE_USER_MESSAGES } from '@/lib/demo-recovery-responses';
-import type { GeminiProviderStatus } from '@/types/agent';
+import type { AgentAudioStatus, GeminiProviderStatus } from '@/types/agent';
 import type { ConversationMessage } from '@/types/recovery-room';
 
 interface ConversationPanelProps {
@@ -24,6 +24,7 @@ interface ConversationPanelProps {
   draftValue?: string;
   onDraftChange?: (value: string) => void;
   geminiProvider?: GeminiProviderStatus | null;
+  voiceStatus?: AgentAudioStatus | null;
   transcriptPreview?: string | null;
 }
 
@@ -41,6 +42,7 @@ export function ConversationPanel({
   draftValue,
   onDraftChange,
   geminiProvider,
+  voiceStatus,
   transcriptPreview,
 }: ConversationPanelProps) {
   const [localInput, setLocalInput] = useState('');
@@ -63,7 +65,11 @@ export function ConversationPanel({
     ? 'Normal coaching paused'
     : sending
       ? 'Amity is reading your session context…'
-      : 'Type or speak to Amity. Voice output will be added in Step 7.';
+      : voiceStatus === 'ready'
+        ? 'Amity will speak the reply with ElevenLabs voice.'
+        : voiceStatus === 'mock_ready'
+          ? 'Add ELEVENLABS_API_KEY for spoken replies.'
+          : 'Type or speak to Amity.';
 
   return (
     <Card variant="default" className="flex flex-col">
@@ -90,7 +96,26 @@ export function ConversationPanel({
                   : geminiProvider}
               </Badge>
             )}
-            <Badge variant="neutral">Voice: disabled (Step 7)</Badge>
+            {voiceStatus && (
+              <Badge
+                variant={
+                  voiceStatus === 'ready'
+                    ? 'success'
+                    : voiceStatus === 'mock_ready'
+                      ? 'neutral'
+                      : voiceStatus === 'disabled'
+                        ? 'neutral'
+                        : 'danger'
+                }
+              >
+                Voice:{' '}
+                {voiceStatus === 'ready'
+                  ? 'ElevenLabs'
+                  : voiceStatus === 'mock_ready'
+                    ? 'not configured'
+                    : voiceStatus}
+              </Badge>
+            )}
           </div>
         </div>
       </CardHeader>

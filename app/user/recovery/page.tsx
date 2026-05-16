@@ -15,6 +15,7 @@ import { QuickModeButtons } from '@/components/recovery/QuickModeButtons';
 import { SessionControls } from '@/components/recovery/SessionControls';
 import { GeminiContextPreview } from '@/components/recovery/GeminiContextPreview';
 import { useRecoveryMediaSession } from '@/hooks/useRecoveryMediaSession';
+import { useRecoveryVoicePlayback } from '@/hooks/useRecoveryVoicePlayback';
 import {
   buildAgentSessionContext,
   buildGeminiContextPreview,
@@ -25,9 +26,16 @@ import { createVoiceSessionSnapshot } from '@/lib/voice-session';
 import type { RecoveryModeId } from '@/lib/demo-recovery-responses';
 import { loadRecoveryContext, saveRecoveryContext } from '@/lib/recovery-session-bridge';
 import { prepareRecoverySession } from '@/lib/recovery-orchestrator';
+import { unlockAudioPlayback } from '@/lib/unlock-audio-playback';
+import { recoveryDebug } from '@/lib/recovery-debug';
 import { prepareCrisisEscalation } from '@/lib/crisis-escalation';
 import { updateContextFromFacialSignal, updateContextFromVoiceSignal } from '@/lib/session-context';
-import type { AgentMessageSource, GeminiProviderStatus } from '@/types/agent';
+import type {
+  AgentAvatarOutput,
+  AgentMessageSource,
+  AgentVoiceOutput,
+  GeminiProviderStatus,
+} from '@/types/agent';
 import type { SharedSessionContext } from '@/types/session-context';
 import type {
   AvatarStatus,
@@ -78,9 +86,44 @@ export default function RecoveryPage() {
   const [agentError, setAgentError] = useState<string | null>(null);
   const [geminiProvider, setGeminiProvider] = useState<GeminiProviderStatus | null>(null);
   const [geminiPreview, setGeminiPreview] = useState<Record<string, unknown> | null>(null);
+  const [voiceOutput, setVoiceOutput] = useState<AgentVoiceOutput | null>(null);
+  const [avatarOutput, setAvatarOutput] = useState<AgentAvatarOutput | null>(null);
 
   const crisis = safetyState === 'crisis' || session.sessionState === 'crisis';
   const lastAutoSentRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
+
+  const liveKitAvatar =
+    avatarOutput?.displayMode === 'livekit' && avatarOutput?.placeholder === false;
+
+  // LiveKit mode: one Web Audio path in publishAudioToRoom (avoids echo).
+  useRecoveryVoicePlayback(
+    voiceOutput?.audioUrl,
+    consentAccepted &&
+      !paused &&
+      voiceOutput?.status === 'ready' &&
+      !liveKitAvatar
+  );
+
+  useEffect(() => {
+    if (!voiceOutput) return;
+    recoveryDebug('RecoveryPage', 'voiceOutput updated', {
+      status: voiceOutput.status,
+      voiceMode: voiceOutput.voiceMode,
+      placeholder: voiceOutput.placeholder,
+      hasAudioUrl: Boolean(voiceOutput.audioUrl),
+      audioUrlLength: voiceOutput.audioUrl?.length ?? 0,
+    });
+  }, [voiceOutput]);
+
+  useEffect(() => {
+    if (!avatarOutput) return;
+    recoveryDebug('RecoveryPage', 'avatarOutput updated', {
+      displayMode: avatarOutput.displayMode,
+      placeholder: avatarOutput.placeholder,
+      agentId: avatarOutput.agentId,
+      agentName: avatarOutput.agentName,
+    });
+  }, [avatarOutput]);
 
   const sessionStatus: RecoverySessionStatus = crisis
     ? 'crisis'
@@ -190,6 +233,13 @@ export default function RecoveryPage() {
         session.markResponding();
         setGeminiProvider(result.provider.gemini);
         if (result.geminiContextPreview) setGeminiPreview(result.geminiContextPreview);
+        if (result.voice) setVoiceOutput(result.voice);
+        if (result.avatar) setAvatarOutput(result.avatar);
+        recoveryDebug('RecoveryPage', 'agent respond ok', {
+          voiceStatus: result.voice?.status,
+          hasAudioUrl: Boolean(result.voice?.audioUrl),
+          avatarMode: result.avatar?.displayMode,
+        });
 
         const assistantText = formatAssistantMessage(result.response, result.nextQuestion);
 
@@ -262,6 +312,7 @@ export default function RecoveryPage() {
 
   const applyConsent = useCallback(
     (withCamera: boolean) => {
+      unlockAudioPlayback();
       const consent = mergeConsent(context.consent, {
         cameraEnabled: withCamera,
         microphoneEnabled: true,
@@ -298,6 +349,15 @@ export default function RecoveryPage() {
         ),
       ]);
       session.startSession({ withCamera });
+
+      void fetch('/api/recovery/bootstrap')
+        .then((r) => r.json())
+        .then((data: { avatar?: AgentAvatarOutput }) => {
+          if (data.avatar) setAvatarOutput(data.avatar);
+        })
+        .catch(() => {
+          /* avatar stays placeholder */
+        });
     },
     [context, session]
   );
@@ -314,6 +374,8 @@ export default function RecoveryPage() {
     setAgentError(null);
     setGeminiProvider(null);
     setGeminiPreview(null);
+    setVoiceOutput(null);
+    setAvatarOutput(null);
     session.stopSession();
   };
 
@@ -366,11 +428,19 @@ export default function RecoveryPage() {
       <div className="mt-6 grid gap-6 lg:grid-cols-12 lg:gap-8">
         <div className="space-y-4 lg:col-span-7 xl:col-span-8">
           <AvatarSessionPanel
+            sessionId={context.sessionId}
             status={avatarStatus}
             cameraEnabled={cameraActive}
             micEnabled={micActive}
             elapsedSeconds={elapsed}
             sessionActive={consentAccepted && !paused}
+            displayMode={avatarOutput?.displayMode ?? 'stage'}
+            embedUrl={avatarOutput?.embedUrl}
+            sessionUrl={avatarOutput?.sessionUrl}
+            agentName={avatarOutput?.agentName}
+            avatarPlaceholder={avatarOutput?.placeholder ?? true}
+            audioUrl={voiceOutput?.audioUrl}
+            isSpeaking={voiceOutput?.status === 'ready'}
           />
           <QuickModeButtons
             selected={selectedMode}
@@ -389,6 +459,7 @@ export default function RecoveryPage() {
             draftValue={draftMessage}
             onDraftChange={setDraftMessage}
             geminiProvider={geminiProvider}
+            voiceStatus={voiceOutput?.status ?? null}
             transcriptPreview={
               session.interimTranscript || session.transcript
                 ? [session.transcript, session.interimTranscript].filter(Boolean).join(' ')
@@ -396,7 +467,12 @@ export default function RecoveryPage() {
             }
           />
           <div className="lg:hidden">
-            <VoiceOutputPanel />
+            <VoiceOutputPanel
+              audioUrl={voiceOutput?.audioUrl}
+              voiceStatus={voiceOutput?.status}
+              voiceMode={voiceOutput?.voiceMode}
+              placeholder={voiceOutput?.placeholder}
+            />
           </div>
           <div className="lg:hidden">
             <SessionControls
@@ -460,17 +536,24 @@ export default function RecoveryPage() {
             sessionStarted={consentAccepted}
             facialStatus={session.facialStatus}
             geminiProvider={geminiProvider}
+            voiceStatus={voiceOutput?.status ?? null}
+            avatarDisplayMode={avatarOutput?.displayMode ?? null}
           />
           <SafetyStatusPanel safetyState={safetyState} crisis={crisis} />
           <div className="hidden lg:block">
-            <VoiceOutputPanel />
+            <VoiceOutputPanel
+              audioUrl={voiceOutput?.audioUrl}
+              voiceStatus={voiceOutput?.status}
+              voiceMode={voiceOutput?.voiceMode}
+              placeholder={voiceOutput?.placeholder}
+            />
           </div>
         </aside>
       </div>
 
       <p className="mt-6 text-center text-xs text-[var(--amity-text-muted)]">
-        Summarized transcript and facial cues only are sent to Gemini — never raw camera video or
-        mic audio.
+        Summarized transcript and facial cues go to the recovery agent — never raw camera video or
+        mic audio. Voice: ElevenLabs. Avatar: Beyond Presence when configured.
       </p>
     </PageContainer>
   );

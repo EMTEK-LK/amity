@@ -1,27 +1,69 @@
 'use client';
 
-import { VolumeX } from 'lucide-react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { mapVoiceMode } from '@/lib/elevenlabs';
+import type { AgentAudioStatus } from '@/types/agent';
 
-/** Step 7 placeholder — ElevenLabs intentionally disabled in Step 6A */
-export function VoiceOutputPanel() {
+interface VoiceOutputPanelProps {
+  audioUrl?: string | null;
+  voiceStatus?: AgentAudioStatus | null;
+  voiceMode?: string | null;
+  placeholder?: boolean;
+}
+
+export function VoiceOutputPanel({
+  audioUrl,
+  voiceStatus,
+  voiceMode,
+  placeholder,
+}: VoiceOutputPanelProps) {
+  /* Audio plays in AvatarSessionPanel so voice and avatar stay in sync */
+
+  const ready = voiceStatus === 'ready' && Boolean(audioUrl);
+  const label = voiceMode ? mapVoiceMode(voiceMode) : 'Calm · supportive';
+
   return (
-    <Card variant="soft" className="opacity-90">
+    <Card variant="soft">
       <CardHeader className="pb-2">
-        <div className="flex items-center gap-2">
-          <VolumeX className="h-4 w-4 text-[var(--amity-text-muted)]" aria-hidden />
-          <CardTitle className="text-base">Voice output</CardTitle>
-        </div>
-        <p className="text-xs text-[var(--amity-text-muted)]">ElevenLabs · Step 7</p>
+        <VoiceHeader ready={ready} />
+        <p className="text-xs text-[var(--amity-text-muted)]">ElevenLabs emotional voice</p>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Badge variant="neutral">Voice layer disabled until Step 7</Badge>
+        <Badge variant={ready ? 'primary' : placeholder ? 'neutral' : 'danger'}>
+          {ready
+            ? 'Voice ready'
+            : voiceStatus === 'mock_ready'
+              ? 'Voice placeholder'
+              : voiceStatus === 'error'
+                ? 'Voice error'
+                : 'Voice pending'}
+        </Badge>
         <p className="text-sm text-[var(--amity-text-muted)]">
-          Step 6 connects face signal and transcript to Gemini for text responses only. Audio
-          generation will return after Gemini responses are stable.
+          {ready
+            ? `Playing recovery line · ${label}`
+            : placeholder
+              ? 'Add ELEVENLABS_API_KEY to .env.local for spoken replies.'
+              : 'Voice generates after each Amity reply.'}
         </p>
+        {audioUrl && voiceStatus === 'ready' ? (
+          <p className="text-xs text-[var(--amity-primary)]">Playing in avatar panel above</p>
+        ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function VoiceHeader({ ready }: { ready: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      {ready ? (
+        <Volume2 className="h-4 w-4 text-[var(--amity-primary)]" aria-hidden />
+      ) : (
+        <VolumeX className="h-4 w-4 text-[var(--amity-text-muted)]" aria-hidden />
+      )}
+      <CardTitle className="text-base">Voice output</CardTitle>
+    </div>
   );
 }

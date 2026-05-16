@@ -68,13 +68,20 @@ export function buildAgentSessionContext(
 ): AgentSessionContextPayload {
   const facial = resolveFacialForAgent(ctx, options);
 
+  const riskLevel =
+    ctx.safetyLevel === 'crisis'
+      ? ctx.riskLevel
+      : ctx.riskLevel === 'crisis'
+        ? 'high'
+        : ctx.riskLevel;
+
   return {
     stressLevel: ctx.stressLevel,
     heartRate: ctx.heartRate,
     voiceState: ctx.voiceState,
     transcript: options.transcript ?? ctx.voiceSession?.transcript ?? null,
     ...facial,
-    riskLevel: ctx.riskLevel,
+    riskLevel,
     safetyLevel: ctx.safetyLevel,
     triggerType: ctx.triggerType ?? null,
     currentEmotion: ctx.currentEmotion,

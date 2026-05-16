@@ -30,6 +30,27 @@ export interface AmityVoiceResult {
   durationMs?: number;
 }
 
+let cachedVoiceId: string | null = null;
+
+async function resolveElevenLabsVoiceId(apiKey: string): Promise<string | null> {
+  const fromEnv = process.env.ELEVENLABS_VOICE_ID?.trim();
+  if (fromEnv) return fromEnv;
+  if (cachedVoiceId) return cachedVoiceId;
+  try {
+    const res = await fetch('https://api.elevenlabs.io/v1/voices', {
+      headers: { 'xi-api-key': apiKey },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { voices?: { voice_id: string; name?: string }[] };
+    const preferred =
+      data.voices?.find((v) => /rachel|sarah|calm|gentle/i.test(v.name ?? '')) ?? data.voices?.[0];
+    cachedVoiceId = preferred?.voice_id ?? null;
+    return cachedVoiceId;
+  } catch {
+    return null;
+  }
+}
+
 const VOICE_SETTINGS: Record<string, { stability: number; similarity_boost: number; style?: number }> = {
   calm_supportive: { stability: 0.55, similarity_boost: 0.75 },
   calm_support: { stability: 0.55, similarity_boost: 0.75 },
@@ -44,7 +65,7 @@ const VOICE_SETTINGS: Record<string, { stability: number; similarity_boost: numb
  */
 export async function generateAmityVoice(input: AmityVoiceInput): Promise<AmityVoiceResult> {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
-  const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
+  const voiceId = apiKey ? await resolveElevenLabsVoiceId(apiKey) : null;
 
   if (!apiKey || !voiceId || !input.text.trim()) {
     return {

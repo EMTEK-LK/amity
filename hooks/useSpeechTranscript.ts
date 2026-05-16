@@ -52,11 +52,9 @@ interface SpeechRecognitionEventLike {
 
 const UNSUPPORTED_MESSAGE =
   'Live browser transcript is unavailable in this browser. Use text input, or run in Chrome with microphone permission.';
-const INTERRUPTED_MESSAGE =
-  'Speech recognition paused. You can continue with text input.';
 
 /** Cap auto-restarts so a flaky engine cannot loop forever. */
-const MAX_AUTO_RESTARTS = 6;
+const MAX_AUTO_RESTARTS = 12;
 
 function getSpeechRecognition(): SpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null;
@@ -65,6 +63,10 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
     webkitSpeechRecognition?: SpeechRecognitionCtor;
   };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+}
+
+function isBenignSpeechError(code: string): boolean {
+  return code === 'no-speech' || code === 'aborted' || code === 'audio-capture';
 }
 
 export function useSpeechTranscript(micGranted: boolean): UseSpeechTranscriptResult {
@@ -83,78 +85,93 @@ export function useSpeechTranscript(micGranted: boolean): UseSpeechTranscriptRes
   const [finalSegments, setFinalSegments] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const buildRecognition = useCallback((): SpeechRecognitionInstance | null => {
-    const Ctor = getSpeechRecognition();
-    if (!Ctor) return null;
-    const recognition = new Ctor();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+  const scheduleRestart = useCallback((delayMs = 400) => {
+    if (!shouldRunRef.current || manualStopRef.current) return;
+    if (restartCountRef.current >= MAX_AUTO_RESTARTS) {
+      setStatus('interrupted');
+      setError('Voice input paused after several retries. Tap Resume session or use text input.');
+      return;
+    }
+    restartCountRef.current += 1;
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    restartTimerRef.current = setTimeout(() => {
+      if (!shouldRunRef.current || manualStopRef.current) return;
+      const Ctor = getSpeechRecognition();
+      if (!Ctor) return;
+      try {
+        recognitionRef.current?.abort();
+      } catch {
+        /* ignore */
+      }
+      const recognition = new Ctor();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      recognitionRef.current = recognition;
 
-    recognition.onresult = (event) => {
-      let interim = '';
-      let finalText = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        const text = result[0]?.transcript ?? '';
-        if (result.isFinal) finalText += text;
-        else interim += text;
-      }
-      if (finalText.trim()) {
-        // Real speech progress — reset the restart guard.
-        restartCountRef.current = 0;
-        const chunk = finalText.trim();
-        setTranscript((prev) => `${prev} ${chunk}`.trim());
-        setFinalSegments((prev) => [...prev, chunk]);
-        setInterimTranscript('');
-      } else {
-        setInterimTranscript(interim);
-      }
-    };
+      recognition.onresult = (event) => {
+        let interim = '';
+        let finalText = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const text = result[0]?.transcript ?? '';
+          if (result.isFinal) finalText += text;
+          else interim += text;
+        }
+        if (finalText.trim()) {
+          restartCountRef.current = 0;
+          setError(null);
+          const chunk = finalText.trim();
+          setTranscript((prev) => `${prev} ${chunk}`.trim());
+          setFinalSegments((prev) => [...prev, chunk]);
+          setInterimTranscript('');
+        } else {
+          setInterimTranscript(interim);
+        }
+      };
 
-    recognition.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        shouldRunRef.current = false;
-        setError('Microphone access blocked. Use text input.');
-        setStatus('error');
-        return;
-      }
-      // no-speech / aborted / network are recoverable — keep the session usable.
-      if (e.error !== 'aborted') {
-        setError(INTERRUPTED_MESSAGE);
-        setStatus('interrupted');
-      }
-    };
+      recognition.onerror = (e) => {
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+          shouldRunRef.current = false;
+          setError('Microphone access blocked. Use text input.');
+          setStatus('error');
+          return;
+        }
+        if (isBenignSpeechError(e.error)) {
+          scheduleRestart(300);
+          return;
+        }
+        setError(null);
+        scheduleRestart(600);
+      };
 
-    recognition.onend = () => {
-      if (
-        shouldRunRef.current &&
-        !manualStopRef.current &&
-        restartCountRef.current < MAX_AUTO_RESTARTS
-      ) {
-        restartCountRef.current += 1;
-        restartTimerRef.current = setTimeout(() => {
-          try {
-            recognition.start();
-            setStatus('listening');
-          } catch {
-            setStatus('interrupted');
-          }
-        }, 600);
-        return;
-      }
-      shouldRunRef.current = false;
-      setStatus((prev) => (prev === 'error' ? 'error' : 'stopped'));
-    };
+      recognition.onend = () => {
+        if (shouldRunRef.current && !manualStopRef.current) {
+          scheduleRestart(300);
+        } else {
+          setStatus((prev) => (prev === 'error' ? 'error' : 'stopped'));
+        }
+      };
 
-    return recognition;
+      try {
+        recognition.start();
+        setStatus('listening');
+        setError(null);
+      } catch {
+        scheduleRestart(800);
+      }
+    }, delayMs);
   }, []);
 
   const stopListening = useCallback(() => {
     manualStopRef.current = true;
     shouldRunRef.current = false;
     if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-    recognitionRef.current?.stop();
+    try {
+      recognitionRef.current?.stop();
+    } catch {
+      recognitionRef.current?.abort();
+    }
     setStatus((prev) =>
       prev === 'unsupported' || prev === 'error' ? prev : 'stopped'
     );
@@ -183,35 +200,26 @@ export function useSpeechTranscript(micGranted: boolean): UseSpeechTranscriptRes
     shouldRunRef.current = true;
     restartCountRef.current = 0;
     setError(null);
-
-    const recognition = buildRecognition();
-    if (!recognition) {
-      setStatus('unsupported');
-      return;
-    }
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-      setStatus('listening');
-    } catch {
-      setStatus('interrupted');
-      setError(INTERRUPTED_MESSAGE);
-    }
-  }, [buildRecognition, micGranted]);
+    scheduleRestart(0);
+  }, [micGranted, scheduleRestart]);
 
   useEffect(() => {
     return () => {
       shouldRunRef.current = false;
       if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
-      recognitionRef.current?.abort();
+      try {
+        recognitionRef.current?.abort();
+      } catch {
+        /* ignore */
+      }
     };
   }, []);
 
   const statusMessage =
     status === 'unsupported'
       ? UNSUPPORTED_MESSAGE
-      : status === 'interrupted'
-        ? INTERRUPTED_MESSAGE
+      : status === 'interrupted' && error
+        ? error
         : error;
 
   return {

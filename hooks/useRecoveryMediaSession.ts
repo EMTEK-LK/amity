@@ -72,22 +72,37 @@ export function useRecoveryMediaSession(): UseRecoveryMediaSessionResult {
   const startedAtRef = useRef(0);
 
   const live = started && !paused && agentPhase !== 'crisis' && agentPhase !== 'ended';
+  /** Pause mic capture while the agent is thinking — avoids Safari/Chrome cutting off STT mid-request. */
+  const speechEnabled =
+    live && agentPhase !== 'processing' && agentPhase !== 'responding';
 
   const facial = useFacialAwareness(withCamera && live);
   const microphone = useMicrophonePermission(live);
-  const speech = useSpeechTranscript(microphone.status === 'granted' && live);
+  const speech = useSpeechTranscript(microphone.status === 'granted' && speechEnabled);
 
   // Begin/auto-resume listening while the live session is active.
   useEffect(() => {
-    if (live && microphone.status === 'granted' && speech.supported) {
-      if (speech.status === 'idle' || speech.status === 'stopped') {
+    if (speechEnabled && microphone.status === 'granted' && speech.supported) {
+      if (
+        speech.status === 'idle' ||
+        speech.status === 'stopped' ||
+        speech.status === 'interrupted'
+      ) {
         speech.startListening();
       }
     }
-    if ((!live || microphone.status !== 'granted') && speech.isListening) {
+    if ((!speechEnabled || microphone.status !== 'granted') && speech.isListening) {
       speech.stopListening();
     }
-  }, [live, microphone.status, speech]);
+  }, [
+    speechEnabled,
+    microphone.status,
+    speech.supported,
+    speech.status,
+    speech.isListening,
+    speech.startListening,
+    speech.stopListening,
+  ]);
 
   // Surface a non-blocking media error message (camera/mic optional).
   useEffect(() => {

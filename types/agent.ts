@@ -42,17 +42,19 @@ export interface AgentRespondRequest {
 }
 
 /**
- * Step 6A: no mock fallback. `real` = live Gemini, `safety` = crisis
- * short-circuit, `not_configured` = missing GEMINI_API_KEY, `error` = request failed.
+ * `real` = live LLM, `safety` = crisis short-circuit,
+ * `not_configured` = missing API key, `error` = request failed.
  */
 export type GeminiProviderStatus = 'real' | 'safety' | 'not_configured' | 'error';
 
+export type AgentAudioStatus = 'ready' | 'mock_ready' | 'unavailable' | 'error' | 'disabled';
+
 export interface AgentProviderStatus {
   gemini: GeminiProviderStatus;
-  voice: 'disabled';
+  voice: AgentAudioStatus;
 }
 
-/** Returned (with non-2xx status) when Gemini is missing/failed — no mock fallback. */
+/** Returned (with non-2xx status) when LLM is missing/failed. */
 export interface AgentErrorResponse {
   error: 'GEMINI_API_KEY_MISSING' | 'GEMINI_REQUEST_FAILED';
   message: string;
@@ -68,7 +70,25 @@ export interface AgentReceivedContext {
   stressLevel?: number;
 }
 
-/** Text-only agent response (Step 6A — voice disabled until Step 7) */
+export interface AgentVoiceOutput {
+  audioUrl: string | null;
+  status: AgentAudioStatus;
+  voiceMode: string;
+  placeholder: boolean;
+}
+
+export type AgentAvatarDisplayMode = 'stage' | 'iframe' | 'livekit';
+
+export interface AgentAvatarOutput {
+  displayMode: AgentAvatarDisplayMode;
+  embedUrl: string | null;
+  sessionUrl: string | null;
+  agentId: string | null;
+  agentName?: string | null;
+  placeholder: boolean;
+}
+
+/** Agent response: LLM text + ElevenLabs voice + Beyond Presence embed metadata */
 export interface AgentRespondResponse {
   response: string;
   safetyLevel: SafetyLevel;
@@ -79,7 +99,6 @@ export interface AgentRespondResponse {
   receivedContext: AgentReceivedContext;
   crisis: boolean;
   geminiContextPreview?: Record<string, unknown>;
+  voice?: AgentVoiceOutput;
+  avatar?: AgentAvatarOutput;
 }
-
-/** @deprecated Step 5.2 audio fields — not used in Step 6A */
-export type AgentAudioStatus = 'ready' | 'mock_ready' | 'unavailable' | 'error';
