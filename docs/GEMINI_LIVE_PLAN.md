@@ -1,14 +1,23 @@
 # Gemini Live — future architecture
 
-**Step 6A:** `POST /api/agent/respond` sends summarized session context (user message, transcript, facial cues) to **Gemini text API** — no ElevenLabs, no Live WebSocket yet. **No mock fallback:** `GEMINI_API_KEY` is required (server-side only); a missing/failed key returns a clear setup error, never a mock reply.
+## Current MVP (implemented)
 
-**Step 6B (current):** Recovery Room is a unified live session — one action starts camera + mic together; final Web Speech segments auto-send (debounced) and the typed chatbot fallback share the same `POST /api/agent/respond` route (`source: voice_transcript | typed_input`). Still one-shot request/response; no Live WebSocket. Raw audio/video are never sent — transcript + summarized facial context only.
+**Turn-based coaching** via `POST /api/agent/respond`:
 
-**Step 7 (next):** ElevenLabs voice after Gemini text is stable.
+- **LLM:** Gemini and/or OpenRouter (`AMITY_LLM_PROVIDER`, quota fallback) using `buildRecoveryPrompt()` — full persona + JSON context per request.
+- **Input:** Typed message or **debounced** finalized Web Speech segment (one API call per turn — not word-by-word).
+- **Context:** Summarized transcript + facial **labels** + vitals — never raw video/audio.
+- **Output:** Complete JSON (`response`, `recommendedAction`, `nextQuestion`) in one response — **not** streamed tokens to the UI yet.
+- **Voice:** LiveKit agent worker speaks via ElevenLabs + Bey; server ElevenLabs skipped when LiveKit configured.
+- **Safety:** `classifySafety()` before coaching; crisis short-circuit.
 
-**Gemini Live** (real-time audio duplex) is a future upgrade documented below.
+See **`docs/LLM_AND_RECOVERY_PIPELINE.md`** for providers, latency, and env vars.
 
-## Future real-time flow
+---
+
+## Future: Gemini Live (real-time)
+
+**Not implemented.** Would replace one-shot HTTP with a persistent session.
 
 ```
 Browser mic audio
@@ -19,36 +28,36 @@ Browser mic audio
   → Beyond Presence avatar (lip-sync)
 ```
 
-## Design principles
+## Design principles (Live mode)
 
 | Topic | Approach |
 |-------|----------|
 | API keys | Server-side only — never in the browser |
 | WebSocket | Backend relay protects credentials and enforces safety |
 | Session context | `SharedSessionContext` injected at session start and on updates |
-| Facial signal | Summarized fields sent periodically — **never raw video frames** |
+| Facial signal | Summarized fields — **never raw video frames** |
 | Crisis | Safety classifier on transcript; explicit language + triggers — **not face alone** |
 | BP avatar | Large left panel = avatar **output**; small right preview = **local** facial awareness |
 
 ## What stays from MVP
 
 - Consent gates (camera, mic, facial awareness)
-- `buildGeminiSessionContextPayload()` — same summarized shape for Live session tools
-- `classifySafety()` — crisis routing before coaching continues
-- ElevenLabs backend adapter for voice output
+- `buildGeminiSessionContextPayload()` — same summarized shape
+- `classifySafety()` — crisis routing
+- ElevenLabs + Bey speak path (possibly fed by streamed text chunks)
 - Crisis UI → `/user/crisis`
 
 ## What changes in Live mode
 
 - Replace one-shot `POST /api/agent/respond` with persistent Live session
-- Stream partial transcripts to UI and context
-- Optional: duplex audio without storing raw video
-- BP embed receives audio + viseme/lip-sync stream
+- Stream partial transcripts to UI and optional partial LLM tokens (SSE)
+- Duplex audio without storing raw video
+- Optional periodic facial context updates (still labels only)
 
-## Not in scope for Step 5.2
+## Not in scope for Live v1
 
 - Direct browser → Gemini Live (keys would leak)
 - Sending webcam frames to Gemini
-- Real Beyond Presence embed
+- Diagnosis from facial cues alone
 
-See also: `docs/FACIAL_AWARENESS.md`, `docs/API_PLAN.md`.
+See also: `docs/FACIAL_AWARENESS.md`, `docs/API_PLAN.md`, `docs/RECOVERY_AVATAR.md`.

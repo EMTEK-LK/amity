@@ -2,7 +2,17 @@
 
 ## Real-Time Emotional Recovery System
 
-This document defines the updated Amity architecture, future integration plan, project folder structure, and implementation roadmap. Use this file as the main architecture reference before connecting Gemini, ElevenLabs, Beyond Presence, face awareness, voice streaming, wearable APIs, workplace tools, and crisis escalation systems.
+This document defines the updated Amity architecture, future integration plan, project folder structure, and implementation roadmap.
+
+> **Implementation status (current build):** For **what is running today** (turn-based LLM, LiveKit lip-sync, performance env, facial labels), prefer these up-to-date references:
+>
+> - [`docs/LLM_AND_RECOVERY_PIPELINE.md`](LLM_AND_RECOVERY_PIPELINE.md) — LLM providers, prompt, latency
+> - [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) — system flow
+> - [`docs/RECOVERY_AVATAR.md`](RECOVERY_AVATAR.md) — LiveKit + Bey
+> - [`docs/FACIAL_AWARENESS.md`](FACIAL_AWARENESS.md) — face-api.js privacy
+> - [`docs/BUILD_PROGRESS.md`](BUILD_PROGRESS.md) — completed tasks
+>
+> Sections below include **planned/future** items mixed with MVP; check the docs above when in doubt.
 
 ---
 
@@ -519,33 +529,37 @@ The Recovery Orchestrator prepares the recovery session based on the shared sess
 
 ## 11. AI Response Layer
 
-Gemini is responsible for:
+### Current implementation
 
-- Emotional reasoning
-- Safe response generation
-- Context-aware conversation flow
-- Crisis classification support
-- Session summary generation
-- Next action recommendation
+- **Providers:** Google Gemini API and/or OpenRouter (`AMITY_LLM_PROVIDER`: `auto` | `gemini` | `openrouter`).
+- **Persona:** `lib/recovery-llm-prompt.ts` → `buildRecoveryPrompt()` on **every** `POST /api/agent/respond` turn.
+- **Turn model:** One HTTP request per user message (typed or debounced speech chunk) — **not** streaming partial tokens to the UI.
+- **Fallback:** When direct Gemini returns quota/credit errors, `auto` and `gemini` modes fall back to OpenRouter if keyed.
+- **Safety:** `lib/safety-classifier.ts` on user text before coaching; crisis short-circuit in API route.
+- **LiveKit agent worker does not call the LLM** — it only speaks lines from `amity/speak`.
 
-### Gemini behavior rules
+### Behavior rules (prompt-enforced)
 
-Gemini must:
+- Speak calmly; keep responses short (JSON: `response`, `recommendedAction`, `nextQuestion`)
+- Avoid diagnosis and therapy claims
+- Crisis only when **user text** indicates danger
+- Facial cues are optional summaries — prioritize user words
 
-- Speak calmly
-- Keep responses short
-- Avoid diagnosis
-- Avoid therapy claims
-- Ask permission before guiding
-- Offer practical recovery steps
-- Stop normal coaching during crisis
-- Encourage human support where appropriate
+See **`docs/LLM_AND_RECOVERY_PIPELINE.md`**.
 
 ---
 
 ## 12. ElevenLabs Voice Layer
 
-ElevenLabs is responsible for natural emotional voice output.
+### Current implementation
+
+| Path | When |
+|------|------|
+| **Agent worker TTS** | LiveKit lip-sync mode — primary audio |
+| **Server `generateAmityVoice()`** | Skipped when `LIVEKIT_*` configured (`shouldSkipServerTts()`) |
+| **Browser playback** | `voiceOutput.audioUrl` only when lip-sync fallback (`lipSyncFallbackVoice`) |
+
+Default server model: `ELEVENLABS_MODEL=eleven_turbo_v2_5` when fallback runs.
 
 ### Voice modes
 
@@ -557,18 +571,18 @@ firm_steady
 crisis_serious
 ```
 
-### Voice flow
+### Voice flow (LiveKit mode — current)
 
 ```txt
-Gemini response text
+LLM response text (API)
         ↓
-Voice mode selected
+Browser publishData amity/speak
         ↓
-ElevenLabs TTS
+Agent worker ElevenLabs TTS
         ↓
-Audio output
+Bey AvatarSession lip-sync
         ↓
-Beyond Presence avatar or Recovery Room audio player
+Browser plays bey-avatar-agent A/V tracks
 ```
 
 ---

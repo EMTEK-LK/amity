@@ -21,8 +21,8 @@ User Device
   → Parallel: Trigger | Facial (optional) | Voice
   → Shared Session Context
   → Risk + Safety Engine
-  → Recovery Orchestrator
-  → Gemini + ElevenLabs + Beyond Presence
+  → POST /api/agent/respond (LLM turn)
+  → LiveKit agent speak + Bey lip-sync (or ElevenLabs fallback)
   → Recovery Summary + Privacy-safe Analytics
   → Crisis Escalation (if needed)
 ```
@@ -37,9 +37,9 @@ See `docs/ARCHITECTURE.md`.
 | Styling | Tailwind CSS, Framer Motion |
 | Charts | Recharts |
 | Icons | Lucide React |
-| Reasoning / safety / summaries | Gemini API |
-| Voice | ElevenLabs API |
-| Video avatar | Beyond Presence |
+| Reasoning / safety / summaries | Gemini API + OpenRouter (`AMITY_LLM_PROVIDER`) |
+| Voice | ElevenLabs (agent worker + optional server fallback) |
+| Video avatar | Beyond Presence + LiveKit Agents |
 | Deploy | Vercel |
 
 ## Core Modules (build order)
@@ -51,10 +51,10 @@ See `docs/ARCHITECTURE.md`.
 5. **Trigger Portal UI** — main demo screen
 6. **Recovery room** — Beyond Presence wrapper + session flow ✅
 6b. **Facial awareness (browser)** — face-api.js, consent, local processing ✅
-6c. **Agent respond pipeline** — `/api/agent/respond`, mic/transcript, Gemini + ElevenLabs adapters ✅
-7. **Live API keys** — verify real Gemini + ElevenLabs in dev
-8. **Gemini Live** — WebSocket relay (see `docs/GEMINI_LIVE_PLAN.md`)
-8. **ElevenLabs voice** — TTS for recovery lines
+6c. **Agent respond pipeline** — `/api/agent/respond`, turn-based LLM, performance opts ✅
+7. **LiveKit + Bey lip-sync** — agent worker ✅
+8. **Gemini Live** — WebSocket relay (see `docs/GEMINI_LIVE_PLAN.md`) — future
+9. **SSE stream LLM text** — show reply before avatar finishes — future
 9. **Summary + analytics** — before/after + company dashboard
 10. **Crisis mode** — escalation UI and handoff simulation
 
@@ -88,7 +88,9 @@ During a Beyond Presence recovery call, Amity will receive transcript, emotional
 
 **Use:** emotional recovery, high-pressure workplace signal, private reset, recovery companion, crisis escalation bridge.
 
-**Facial awareness:** Optional face-api.js in the browser (`docs/FACIAL_AWARENESS.md`). Webcam requires consent; only summarized cues enter session context; crisis must combine user text, triggers, and safety classifier — never face alone.
+**Facial awareness:** Optional face-api.js (`docs/FACIAL_AWARENESS.md`). Webcam requires consent; labels sent **per user message** to LLM — never raw video; crisis from user text/triggers — never face alone.
+
+**LLM / latency:** Turn-based requests (`docs/LLM_AND_RECOVERY_PIPELINE.md`). Server skips duplicate ElevenLabs when LiveKit is configured.
 
 ## Success Criteria (demo)
 

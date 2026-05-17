@@ -6,9 +6,10 @@ This document describes how the **Recovery Room** lip-synced avatar works in the
 
 When LiveKit is configured, the Recovery Room uses:
 
-1. **Gemini / OpenRouter** — generates coaching text (`POST /api/agent/respond`)
-2. **ElevenLabs** — generates a local audio fallback URL (used only if lip-sync is unavailable)
+1. **Gemini / OpenRouter** — generates coaching text (`POST /api/agent/respond`) — see `docs/LLM_AND_RECOVERY_PIPELINE.md`
+2. **Server ElevenLabs** — **skipped** when LiveKit is configured (`shouldSkipServerTts()`); avoids duplicate TTS and API latency
 3. **LiveKit Agents worker** — runs ElevenLabs TTS and routes audio through the **Beyond Presence (Bey)** plugin for lip-synced video
+4. **ElevenLabs in browser** — fallback `audioUrl` only when lip-sync is unavailable (`lipSyncFallbackVoice`)
 
 The browser **does not** publish its own audio to LiveKit for lip-sync. Audio and video come from the `bey-avatar-agent` participant in the room.
 
@@ -17,8 +18,8 @@ The browser **does not** publish its own audio to LiveKit for lip-sync. Audio an
 ```
 ┌─────────────────┐     POST /api/agent/respond      ┌──────────────────┐
 │  Recovery Room  │ ───────────────────────────────► │  Next.js API     │
-│  (browser)      │ ◄── LLM text + voice URL (fallback)│  lib/recovery-  │
-└────────┬────────┘                                    │  pipeline.ts     │
+│  (browser)      │ ◄── LLM text (voice skipped if LiveKit)│  pipeline   │
+└────────┬────────┘                                    └──────────────────┘
          │                                             └──────────────────┘
          │ POST /api/recovery/avatar-livekit
          │ (connect | token)
@@ -52,7 +53,7 @@ The browser **does not** publish its own audio to LiveKit for lip-sync. Audio an
 
 ## Speak flow
 
-1. User sends a message → `POST /api/agent/respond` returns `response`, `voice`, `avatar`.
+1. User sends a message (typed or debounced speech chunk) → `POST /api/agent/respond` returns `response`, `voice` (often `disabled` when LiveKit), `avatar`.
 2. Recovery page sets `speakRequest` `{ id, text }` with the assistant line.
 3. `LiveKitAvatarVideo` calls `publishLiveKitAvatarSpeak(sessionId, text, requestId)`.
 4. Browser sends **one** reliable data packet on topic `amity/speak`:
@@ -99,8 +100,10 @@ See `.env.example`. Required for lip-sync:
 | `LIVEKIT_API_SECRET` | Server + agent worker |
 | `BEYOND_PRESENCE_API_KEY` | Agent worker Bey plugin |
 | `BEYOND_PRESENCE_AVATAR_ID` or `BEY_AVATAR_ID` | Bey avatar selection |
-| `ELEVENLABS_API_KEY` | API fallback + agent TTS |
-| `ELEVENLABS_VOICE_ID` | Agent TTS voice (same as API route) |
+| `ELEVENLABS_API_KEY` | Agent worker TTS (+ server fallback if no LiveKit) |
+| `ELEVENLABS_VOICE_ID` | Agent TTS voice |
+| `AMITY_SKIP_SERVER_TTS` | `true` or auto when LiveKit set — skip API TTS |
+| `GEMINI_*` / `OPENROUTER_*` | LLM coaching text (not used by agent worker) |
 
 Agent worker loads `../.env.local` from the repo root.
 
@@ -134,5 +137,6 @@ Server terminal (`npm run dev`):
 
 ## References
 
+- [`docs/LLM_AND_RECOVERY_PIPELINE.md`](LLM_AND_RECOVERY_PIPELINE.md) — LLM turn model, latency, providers
 - [LiveKit Agents — Bey plugin](https://docs.livekit.io/agents/models/avatar/plugins/bey/)
 - `agent-worker/README.md` — worker setup

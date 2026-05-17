@@ -87,23 +87,28 @@ Work **one task at a time**. Update `docs/BUILD_PROGRESS.md` after each.
 - [x] Provider badges + context preview
 - [x] `/api/agent/test`
 
-## Phase 7 — ElevenLabs voice
+## Phase 7 — ElevenLabs voice ✅
 
-- [ ] Re-enable `generateAmityVoice` after agent respond
-- [ ] Audio playback in VoiceOutputPanel
+- [x] `generateAmityVoice` in recovery pipeline
+- [x] `useRecoveryVoicePlayback` + lip-sync fallback policy
+- [x] Server TTS skipped when LiveKit configured
 
-## Phase 8 — Mock API routes & demo store
+## Phase 8 — LiveKit lip-sync ✅
+
+- [x] `agent-worker/` + `docs/RECOVERY_AVATAR.md`
+- [x] Performance: `lib/recovery-performance.ts`, docs `LLM_AND_RECOVERY_PIPELINE.md`
+
+## Phase 8b — Mock API routes & demo store
 
 - [ ] Implement `lib/demo-store.ts` (Sarah baseline)
 - [ ] Implement `lib/signal-engine.ts` / `lib/risk-engine.ts` (server-side)
 - [ ] `POST /api/triggers` (thin handler → engines)
 
-## Phase 7 — Real integrations
+## Phase 9 — Real integrations (partial ✅)
 
-- [ ] Session orchestrator in demo store
-- [ ] `lib/gemini.ts`, `lib/safety-classifier.ts`
-- [ ] `lib/elevenlabs.ts`, `lib/beyond-presence.ts`
-- [ ] `/recovery-room` + APIs
+- [x] `lib/gemini.ts`, `lib/openrouter.ts`, `lib/safety-classifier.ts`
+- [x] `lib/elevenlabs.ts`, `lib/beyond-presence.ts`, `/user/recovery` + APIs
+- [ ] Hosted agent worker (production)
 
 ## Phase 8 — Summary & dashboard
 

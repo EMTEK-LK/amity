@@ -78,14 +78,15 @@ No horizontal scroll. Padding bottom for sticky CTA.
 
 - Consent gate → **one Start live recovery session action** (camera + mic together) → avatar panel → quick modes → session conversation → side panels
 - Unified media via `useRecoveryMediaSession` (session states: idle / requesting_permissions / active_listening / processing / responding / paused / crisis / ended / error)
-- **Large main panel:** **avatar output** (placeholder) — labeled clearly, never the webcam
-- **Local facial awareness:** compact signal card in session context; session controls it (no separate enable button); “models missing” / “no face” degrade gracefully
-- **Session conversation:** typed chatbot is always available; final Web Speech segments auto-send (debounced, de-duplicated). Both paths → `POST /api/agent/respond` with `source`
-- **Signal status:** camera / microphone / transcript / facial / Gemini / voice (disabled until Step 7)
-- **Gemini context preview:** collapsible; shows message source + camera/mic + summarized payload
-- Mobile: stacked (avatar → controls → conversation → context → signals); no horizontal scroll at 360/390/430
-- Crisis is text/safety-classifier driven only → `/user/crisis`; **never** from facial expression alone
-- Fallbacks: camera denied → voice/text continue; mic denied → text continues; speech unsupported/interrupted → typed chatbot remains; Gemini key missing → setup error (no mock)
+- **Large main panel:** LiveKit + Bey lip-sync when configured (`LiveKitAvatarVideo`); else coach stage
+- **Local facial awareness:** compact signal card; face-api ~1s locally; labels sent **per message** to LLM — never video
+- **Session conversation:** typed chat + debounced speech → one turn each → `POST /api/agent/respond`
+- **Signal status:** camera / mic / transcript / facial / LLM provider / voice (agent or fallback)
+- **Gemini context preview:** message source + summarized payload (facial labels, transcript)
+- Mobile: stacked (avatar → controls → conversation → context → signals)
+- Crisis: text/safety-classifier only → `/user/crisis`
+- Fallbacks: lip-sync down → ElevenLabs `audioUrl`; LLM keys missing → setup error (no mock coaching)
+- See `docs/LLM_AND_RECOVERY_PIPELINE.md`, `docs/RECOVERY_AVATAR.md`
 
 ## Component Map
 

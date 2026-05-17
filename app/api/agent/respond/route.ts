@@ -10,6 +10,7 @@ import { GeminiError, getCrisisSafeResponseText } from '@/lib/gemini';
 import { runRecoveryPipeline } from '@/lib/recovery-pipeline';
 import { generateAmityVoice } from '@/lib/elevenlabs';
 import { getBeyondPresenceConfig } from '@/lib/beyond-presence';
+import { shouldSkipServerTts } from '@/lib/recovery-performance';
 
 export async function POST(request: Request) {
   let body: AgentRespondRequest;
@@ -54,11 +55,20 @@ export async function POST(request: Request) {
   const safety = await classifySafety(userMessage);
   if (safety.mode === 'crisis') {
     const crisisText = getCrisisSafeResponseText();
-    const voice = await generateAmityVoice({
-      text: crisisText,
-      voiceMode: 'crisis_serious',
-    });
-    const avatar = await getBeyondPresenceConfig();
+    const skipServerTts = shouldSkipServerTts();
+    const [voice, avatar] = await Promise.all([
+      skipServerTts
+        ? Promise.resolve({
+            audioUrl: null,
+            audioStatus: 'disabled' as const,
+            placeholder: true,
+          })
+        : generateAmityVoice({
+            text: crisisText,
+            voiceMode: 'crisis_serious',
+          }),
+      getBeyondPresenceConfig(),
+    ]);
     const payload: AgentRespondResponse = {
       response: crisisText,
       safetyLevel: 'crisis',
@@ -156,6 +166,9 @@ export async function POST(request: Request) {
       err instanceof GeminiError
         ? err.message
         : 'Recovery agent request failed. Check API keys and server logs.';
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[AmityRecovery] /api/agent/respond failed:', message);
+    }
     const errorPayload: AgentErrorResponse = {
       error: 'GEMINI_REQUEST_FAILED',
       message,

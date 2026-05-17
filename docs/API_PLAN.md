@@ -18,7 +18,7 @@ Next.js Route Handlers under `app/api/`. Demo uses in-memory `demo-store` and **
 ### `GET/POST /api/employees`
 
 - Demo employee profile (Sarah)
-- Update emotional twin state after triggers
+- Update emotional digital twin state after triggers
 
 ### `POST /api/triggers`
 
@@ -47,36 +47,45 @@ Next.js Route Handlers under `app/api/`. Demo uses in-memory `demo-store` and **
 - Start session (orchestrator → Beyond Presence room config)
 - End session → trigger summary generation
 
-### `POST /api/agent/respond` ✅ (Step 6A/6B — text only)
+### `POST /api/agent/respond` ✅ (current)
 
-- **Request:** `userMessage`, `sessionId`, `employeeId`, `source` (`voice_transcript` | `typed_input`, Step 6B), `sessionContext` (summarized stress, HR, voice, **transcript text**, facial expression/confidence/engagement/quality, risk, safety, recovery mode)
-- **Shared route:** both auto-sent live transcript segments and the typed chatbot fallback call this endpoint
-- **Flow:** `classifySafety()` → crisis short-circuit OR `generateAmityRecoveryResponse()` (no ElevenLabs in Step 6A/6B)
-- **No mock fallback (Step 6A):** `GEMINI_API_KEY` is required
-- **Response (2xx):** `response`, `safetyLevel`, `recommendedAction`, `nextQuestion`, `provider.gemini` (`real` | `safety`), `provider.voice` (`disabled`), `receivedContext`, `geminiContextPreview`
-- **Error 400 (missing key):** `{ "error": "GEMINI_API_KEY_MISSING", "message": "...", "provider": { "gemini": "not_configured", "voice": "disabled" } }`
-- **Error 502 (request failed):** `{ "error": "GEMINI_REQUEST_FAILED", "message": "...", "provider": { "gemini": "error", "voice": "disabled" } }`
+**Turn-based:** one HTTP request per user message (typed or finalized speech segment). Not streaming partial LLM tokens to the client.
+
+- **Request:** `userMessage`, `sessionId`, `employeeId`, `source` (`voice_transcript` | `typed_input`), `sessionContext` (summarized stress, HR, voice, **transcript text**, facial expression/confidence/engagement/quality, risk, safety, recovery mode), `selectedRecoveryMode`
+- **Flow:** `classifySafety()` → crisis short-circuit OR `runRecoveryPipeline()`:
+  - `generateAmityRecoveryResponse()` — Gemini and/or OpenRouter (`AMITY_LLM_PROVIDER`, quota fallback)
+  - `generateAmityVoice()` — **skipped** when LiveKit configured (`shouldSkipServerTts()`)
+  - `getBeyondPresenceConfig()` — in parallel with LLM; 5 min cache
+- **LLM prompt:** `buildRecoveryPrompt()` — Amity persona + JSON context (`lib/recovery-llm-prompt.ts`)
+- **Keys:** `GEMINI_API_KEY` and/or `OPENROUTER_API_KEY` required (no mock coaching fallback)
+- **Response (2xx):** `response`, `safetyLevel`, `recommendedAction`, `nextQuestion`, `provider.gemini` (`real` | `safety`), `provider.voice` (`ready` | `disabled` | `mock_ready` | …), `voice.audioUrl` (null when server TTS skipped), `avatar`, `receivedContext`, `geminiContextPreview`
+- **Error 400:** `GEMINI_API_KEY_MISSING` — no keys configured
+- **Error 502:** `GEMINI_REQUEST_FAILED` — includes Gemini quota/depleted or OpenRouter errors (message in `message` field; logged in dev)
 - **Never:** raw webcam frames, images, or mic audio
+
+See **`docs/LLM_AND_RECOVERY_PIPELINE.md`**.
+
+### `POST /api/recovery/avatar-livekit` ✅
+
+- `phase: connect` — room token + dispatch `amity-recovery-agent`
+- `phase: token` — refresh browser token only
 
 ### `POST /api/agent/test` ✅
 
-- Body: `{ "message": "..." }` — tests Gemini adapter with demo session context
-- Returns (2xx): `{ "response", "provider": { "gemini": "real" | "safety", "voice": "disabled" }, "recommendedAction", "nextQuestion" }`
-- Same error contract as `/api/agent/respond` — no mock fallback
+- Body: `{ "message": "..." }` — tests LLM adapter with demo session context
+- Same error contract as `/api/agent/respond`
 
 ### `POST /api/agent` (future aliases)
 
 - May wrap the same handler for batch/summary endpoints
 
-### `POST /api/voice`
+### `POST /api/voice` (future)
 
-- ElevenLabs: synthesize recovery line from agent text
-- Return audio URL or stream for recovery room
+- Optional dedicated TTS endpoint; today TTS is in pipeline or agent worker
 
-### `POST /api/safety`
+### `POST /api/safety` (future)
 
-- Gemini safety classifier: normal vs crisis
-- Returns `{ mode: 'normal' | 'crisis', flags: string[] }`
+- Dedicated safety classifier endpoint; today inline in respond route
 
 ### `POST /api/crisis`
 
@@ -90,16 +99,23 @@ Next.js Route Handlers under `app/api/`. Demo uses in-memory `demo-store` and **
 
 - JSON bodies, `Content-Type: application/json`
 - Typed with shared `types/*` interfaces
-- Errors: `{ error: string, code?: string }` with appropriate HTTP status
+- Errors: `{ error: string, message?: string, provider?: … }` with appropriate HTTP status
 - No employee transcripts or PII in analytics responses
 
-## Environment Variables (planned)
+## Environment Variables
+
+See `.env.example` and README. LLM + performance:
 
 ```env
+AMITY_LLM_PROVIDER=auto
 GEMINI_API_KEY=
-ELEVENLABS_API_KEY=
-BEYOND_PRESENCE_API_KEY=
-BEYOND_PRESENCE_AGENT_ID=
+GEMINI_MODEL=gemini-2.0-flash
+OPENROUTER_API_KEY=
+OPENROUTER_MODEL=google/gemini-2.0-flash-001
+AMITY_LLM_FALLBACK_FREE=false
+AMITY_LLM_MAX_TOKENS=220
+AMITY_SKIP_SERVER_TTS=true
+ELEVENLABS_MODEL=eleven_turbo_v2_5
 ```
 
 ## Security & Privacy
@@ -107,29 +123,22 @@ BEYOND_PRESENCE_AGENT_ID=
 - Server-only API keys
 - Safety check on every agent turn before coaching copy
 - Crisis path bypasses normal coaching endpoints behavior
-- Rate limiting optional for demo (Vercel edge config later)
+- Facial: summarized labels only — never frames
 
 ## Role & Identity (demo)
 
-- Identities hardcoded in `lib/demo-identities.ts` (`DemoAdmin` `ADMIN-001`, `DemoEmployee` `EMP-001`); no auth endpoints in the buildathon.
-- Role (`admin` \| `employee`) is client state persisted in `localStorage` (`amity-role`) via `RoleProvider`; switched through a single account dropdown. Role-aware nav config: `lib/navigation.ts` (`getRoleNavigation`); identities: `getDemoIdentityByRole`.
-- `/admin/*` is wrapped by a client demo gate (`app/admin/layout.tsx`) that prompts a role switch when the employee role is active — placeholder for future server-side authorization.
-- **Privacy boundary:** `GET /api/analytics` and any admin-facing endpoint return aggregates only — never transcripts, personal confessions, medical labels, or crisis messages. Employee-private fields (e.g. `agentSummaryPrivate`) are excluded from admin responses.
-
-## Service Areas (architecture)
-
-Frontend: admin experience · employee experience · shared shell · shared design system.
-Backend/service (planned): demo identity store · role/session state · trigger service · signal engine · risk engine · recovery session service · BP session adapter · Gemini agent service · ElevenLabs voice service · safety classifier · crisis escalation service · analytics service.
+- Identities hardcoded in `lib/demo-identities.ts`; role in `localStorage` (`amity-role`)
+- **Privacy boundary:** admin endpoints return aggregates only
 
 ## Future Video / Audio Crisis Detection (planned)
 
-A future session-analysis service consumes BP transcript/emotional cues/session signals. On crisis signal → calls the crisis escalation service, bypasses normal `agent` coaching, returns emergency options + handoff state, and keeps the user engaged until handoff. Not implemented in the buildathon — simulated via trigger demo / user messages.
+Session-analysis service on BP transcript/cues — not implemented; simulated via trigger demo / user messages.
 
 ## Implementation Order
 
 1. `triggers` + `employees` (demo store wired)
-2. `safety` + `agent` (Gemini)
-3. `voice` (ElevenLabs)
-4. `recovery-sessions` (Beyond Presence config)
+2. `safety` + `agent/respond` (LLM) ✅
+3. `voice` + LiveKit agent worker ✅
+4. `recovery-sessions` / avatar-livekit ✅
 5. `analytics` + `crisis`
-6. session-analysis service (future video/audio crisis detection)
+6. Gemini Live streaming (future)

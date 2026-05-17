@@ -37,11 +37,15 @@
 - Accept consent → **Start live recovery session** (camera + mic together)
 - **Large left** = lip-synced Beyond Presence avatar (LiveKit); badge **Lip-sync live**
 - Requires LLM + LiveKit + Bey keys in `.env.local` (see README)
-- Type or speak → Gemini/OpenRouter reply → avatar **speaks with lip-sync**
-- Open **Gemini context preview** for message source + facial + transcript payload
-- Try “I am not safe right now” → crisis (from text, not face) → Crisis Safety Flow
+- Type or speak → one API turn → Gemini/OpenRouter reply (typically 2–6s with fast model) → avatar **speaks with lip-sync**
+- Open **Gemini context preview** — shows summarized facial **labels** + transcript (not video)
+- Try “I am not safe right now” → crisis (from **text**, not face) → Crisis Safety Flow
 
-**Judge talking point:** Amity LLM writes the words; ElevenLabs + Bey deliver voice and video — employee sessions stay private; company dashboard sees aggregates only.
+**Judge talking points:**
+- Amity LLM (`buildRecoveryPrompt`) writes coaching JSON; agent worker + Bey deliver voice/video.
+- Face-api runs locally; only labels like `sad` / `neutral` go to the LLM **per message**, not continuous video.
+- Employee sessions stay private; company dashboard sees aggregates only.
+- If Gemini credits are empty, OpenRouter fallback works (`AMITY_LLM_PROVIDER=auto`).
 
 ## Act 4 — Summary (45s)
 

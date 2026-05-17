@@ -4,8 +4,8 @@
 
 ## Current Status
 
-**Phase:** Step 8 — LiveKit + Beyond Presence lip-sync avatar  
-**Overall:** Recovery Room has unified camera/mic/chat, Gemini responses, ElevenLabs voice fallback, and lip-synced BP avatar via LiveKit Agents
+**Phase:** Step 8 + performance — LiveKit lip-sync, turn-based LLM, optimized `/api/agent/respond`  
+**Overall:** Recovery Room has unified camera/mic/chat, Gemini/OpenRouter coaching, agent-worker TTS + Bey lip-sync, ElevenLabs browser fallback only when needed
 
 ## Completed Tasks (Step 6A)
 
@@ -42,22 +42,19 @@
 - [x] Request ID dedupe (browser + agent) — single speak per reply
 - [x] Docs: `docs/RECOVERY_AVATAR.md`, README, agent-worker README
 
-## Completed Tasks (Buildathon Submission)
+## Completed Tasks (Performance — respond latency)
 
-- [x] Cursor Buildathon submission document drafted (`docs/CURSOR_BUILDATHON_SUBMISSION.md`)
-- [x] Existing Amity docs reviewed and consolidated
-- [x] MVP vs future scope clarified (voice/avatar = configuration-gated, honestly scoped)
-- [x] Architecture, functional/non-functional requirements, security, market, and business model documented
-
-## Current Status
-
-- Submission document ready for review
+- [x] Skip server ElevenLabs when LiveKit configured (`lib/recovery-performance.ts`)
+- [x] LLM + Beyond Presence config in parallel (`runRecoveryPipeline`)
+- [x] Cached Beyond Presence agent metadata (5 min TTL)
+- [x] OpenRouter: JSON-first, no slow `openrouter/free` fallback unless `AMITY_LLM_FALLBACK_FREE=true`
+- [x] ElevenLabs turbo model default (`ELEVENLABS_MODEL=eleven_turbo_v2_5`) for stage/fallback path
+- [x] Lower default LLM max tokens (`AMITY_LLM_MAX_TOKENS`)
 
 ## Next Task
 
-- [ ] Review team details, demo URL, repo URL, and final submission copy
 - [ ] Production deploy checklist (env vars, agent worker hosting)
-- [ ] Optional: reduce `/api/agent/respond` latency (stream text before TTS)
+- [ ] Stream LLM text to UI before avatar finishes speaking (SSE)
 - [ ] Gemini Live streaming (see `docs/GEMINI_LIVE_PLAN.md`)
 
 ## How to run (Recovery + lip-sync)
@@ -93,8 +90,20 @@ Open `/user/recovery` — requires `GEMINI_*` or `OPENROUTER_*`, `ELEVENLABS_*`,
 
 - Employee sessions are private; dashboard is aggregates only.
 - Bey video alone does **not** mean the agent worker is live — check for `joining room` in agent terminal.
-- Raw video/audio are not sent to the LLM — transcript + summarized facial cues only.
+- Raw video/audio are not sent to the LLM — transcript + summarized facial cues per **turn** only.
+- LLM is **not** the LiveKit agent worker — see `docs/LLM_AND_RECOVERY_PIPELINE.md`.
+- Gemini direct API 429 (credits depleted) → use OpenRouter or top up AI Studio billing.
+
+## Documentation index
+
+| Doc | Topic |
+|-----|--------|
+| `docs/LLM_AND_RECOVERY_PIPELINE.md` | Providers, prompt, turn model, latency, env |
+| `docs/RECOVERY_AVATAR.md` | LiveKit + Bey lip-sync |
+| `docs/FACIAL_AWARENESS.md` | face-api.js → LLM labels |
+| `docs/ARCHITECTURE.md` | System flow |
+| `docs/API_PLAN.md` | `/api/agent/respond` contract |
 
 ---
 
-*Last updated: Step 8 — LiveKit + Beyond Presence lip-sync*
+*Last updated: Docs sync — LLM pipeline, performance, architecture*
