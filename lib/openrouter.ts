@@ -4,6 +4,7 @@ import {
   normalizeRecoveryResponse,
 } from './recovery-response-parser';
 import { buildRecoveryPrompt, type AmityRecoveryResponseInput } from './recovery-llm-prompt';
+import { llmMaxOutputTokens } from './recovery-performance';
 
 type OpenRouterErrorBody = {
   error?: { message?: string; code?: number };
@@ -54,7 +55,7 @@ async function requestOpenRouter(
       { role: 'user', content: prompt },
     ],
     temperature: 0.65,
-    max_tokens: 320,
+    max_tokens: llmMaxOutputTokens(),
   };
   if (useJsonFormat) {
     body.response_format = { type: 'json_object' };
@@ -95,11 +96,13 @@ export async function generateOpenRouterRecoveryResponse(
   const prompt = buildRecoveryPrompt(input);
 
   const attempts: { model: string; useJsonFormat: boolean }[] = [
-    { model, useJsonFormat: false },
     { model, useJsonFormat: true },
+    { model, useJsonFormat: false },
   ];
-  if (model !== 'openrouter/free') {
-    attempts.push({ model: 'openrouter/free', useJsonFormat: false });
+  const allowFreeFallback =
+    process.env.AMITY_LLM_FALLBACK_FREE?.trim().toLowerCase() === 'true';
+  if (allowFreeFallback && model !== 'openrouter/free') {
+    attempts.push({ model: 'openrouter/free', useJsonFormat: true });
   }
 
   let lastError: string | null = null;

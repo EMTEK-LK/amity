@@ -77,6 +77,8 @@ export async function generateAmityVoice(input: AmityVoiceInput): Promise<AmityV
   }
 
   const settings = VOICE_SETTINGS[input.voiceMode] ?? VOICE_SETTINGS.calm_supportive;
+  const modelId =
+    process.env.ELEVENLABS_MODEL?.trim() || 'eleven_turbo_v2_5';
 
   try {
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -88,7 +90,7 @@ export async function generateAmityVoice(input: AmityVoiceInput): Promise<AmityV
       },
       body: JSON.stringify({
         text: input.text,
-        model_id: 'eleven_multilingual_v2',
+        model_id: modelId,
         voice_settings: settings,
       }),
     });

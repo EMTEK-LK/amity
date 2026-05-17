@@ -42,10 +42,19 @@
 - [x] Request ID dedupe (browser + agent) — single speak per reply
 - [x] Docs: `docs/RECOVERY_AVATAR.md`, README, agent-worker README
 
+## Completed Tasks (Performance — respond latency)
+
+- [x] Skip server ElevenLabs when LiveKit configured (`lib/recovery-performance.ts`)
+- [x] LLM + Beyond Presence config in parallel (`runRecoveryPipeline`)
+- [x] Cached Beyond Presence agent metadata (5 min TTL)
+- [x] OpenRouter: JSON-first, no slow `openrouter/free` fallback unless `AMITY_LLM_FALLBACK_FREE=true`
+- [x] ElevenLabs turbo model default (`ELEVENLABS_MODEL=eleven_turbo_v2_5`) for stage/fallback path
+- [x] Lower default LLM max tokens (`AMITY_LLM_MAX_TOKENS`)
+
 ## Next Task
 
 - [ ] Production deploy checklist (env vars, agent worker hosting)
-- [ ] Optional: reduce `/api/agent/respond` latency (stream text before TTS)
+- [ ] Stream LLM text to UI before avatar finishes speaking (SSE)
 - [ ] Gemini Live streaming (see `docs/GEMINI_LIVE_PLAN.md`)
 
 ## How to run (Recovery + lip-sync)
@@ -85,4 +94,4 @@ Open `/user/recovery` — requires `GEMINI_*` or `OPENROUTER_*`, `ELEVENLABS_*`,
 
 ---
 
-*Last updated: Step 8 — LiveKit + Beyond Presence lip-sync*
+*Last updated: Performance — faster `/api/agent/respond`*

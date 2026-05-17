@@ -3,6 +3,7 @@ import { generateAmityRecoveryResponse } from './gemini';
 import { generateAmityVoice, type AmityVoiceMode } from './elevenlabs';
 import { getBeyondPresenceConfig } from './beyond-presence';
 import { pickVoiceMode } from './demo-recovery-responses';
+import { shouldSkipServerTts } from './recovery-performance';
 import type { AmityRecoveryResponseResult } from './llm-types';
 import type { AgentAudioStatus } from '@/types/agent';
 
@@ -28,11 +29,25 @@ export interface RecoveryPipelineResult {
   avatar: RecoveryPipelineAvatar;
 }
 
+function delegatedVoiceResult(voiceMode: string): RecoveryPipelineVoice {
+  return {
+    audioUrl: null,
+    status: 'disabled',
+    voiceMode,
+    placeholder: true,
+  };
+}
+
 export async function runRecoveryPipeline(
   input: AmityRecoveryResponseInput,
   opts?: { crisis?: boolean; stressLevel?: number }
 ): Promise<RecoveryPipelineResult> {
-  const llm = await generateAmityRecoveryResponse(input);
+  const skipServerTts = shouldSkipServerTts();
+
+  const [llm, avatar] = await Promise.all([
+    generateAmityRecoveryResponse(input),
+    getBeyondPresenceConfig(),
+  ]);
 
   const crisis = opts?.crisis ?? llm.safetyLevel === 'crisis';
   const stress = opts?.stressLevel ?? input.sessionContext.stressLevel ?? 50;
@@ -41,12 +56,12 @@ export async function runRecoveryPipeline(
     : pickVoiceMode(false, stress);
 
   const speakText = [llm.response, llm.nextQuestion].filter(Boolean).join(' ').trim();
-  const voiceResult = await generateAmityVoice({
-    text: speakText,
-    voiceMode,
-  });
-
-  const avatar = await getBeyondPresenceConfig();
+  const voiceResult = skipServerTts
+    ? delegatedVoiceResult(voiceMode)
+    : await generateAmityVoice({
+        text: speakText,
+        voiceMode,
+      });
 
   return {
     llm,

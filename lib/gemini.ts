@@ -6,6 +6,7 @@ import {
   normalizeRecoveryResponse,
 } from './recovery-response-parser';
 import { buildRecoveryPrompt, type AmityRecoveryResponseInput } from './recovery-llm-prompt';
+import { llmMaxOutputTokens } from './recovery-performance';
 
 export type { AmityRecoveryResponseResult, GeminiErrorCode } from './llm-types';
 export { GeminiError } from './llm-types';
@@ -42,8 +43,25 @@ function isGeminiQuotaError(message: string): boolean {
   return (
     message.includes('quota') ||
     message.includes('RESOURCE_EXHAUSTED') ||
-    message.includes('rate limit')
+    message.includes('rate limit') ||
+    message.includes('depleted') ||
+    message.includes('429')
   );
+}
+
+async function generateGeminiWithOpenRouterFallback(
+  input: AmityRecoveryResponseInput
+): Promise<AmityRecoveryResponseResult> {
+  const hasOpenRouter = Boolean(process.env.OPENROUTER_API_KEY?.trim());
+  try {
+    return await generateGeminiRecoveryResponse(input);
+  } catch (err) {
+    if (hasOpenRouter && err instanceof GeminiError && isGeminiQuotaError(err.message)) {
+      console.warn('[AmityRecovery] Gemini quota/credits exhausted — using OpenRouter fallback');
+      return generateOpenRouterRecoveryResponse(input);
+    }
+    throw err;
+  }
 }
 
 async function messageFromGeminiErrorResponse(res: Response): Promise<string> {
@@ -106,7 +124,7 @@ async function generateGeminiRecoveryResponse(
         contents: [{ role: 'user', parts: [{ text: buildRecoveryPrompt(input) }] }],
         generationConfig: {
           temperature: 0.65,
-          maxOutputTokens: 320,
+          maxOutputTokens: llmMaxOutputTokens(),
           responseMimeType: 'application/json',
         },
       }),
@@ -158,19 +176,12 @@ export async function generateAmityRecoveryResponse(
   }
 
   if (mode === 'gemini') {
-    return generateGeminiRecoveryResponse(input);
+    return generateGeminiWithOpenRouterFallback(input);
   }
 
   // auto
   if (hasGemini) {
-    try {
-      return await generateGeminiRecoveryResponse(input);
-    } catch (err) {
-      if (hasOpenRouter && err instanceof GeminiError && isGeminiQuotaError(err.message)) {
-        return generateOpenRouterRecoveryResponse(input);
-      }
-      throw err;
-    }
+    return generateGeminiWithOpenRouterFallback(input);
   }
 
   if (hasOpenRouter) {

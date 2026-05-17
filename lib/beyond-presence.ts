@@ -32,6 +32,10 @@ export interface BeyondPresenceRoom {
 
 const BEY_API = 'https://api.bey.dev/v1';
 
+let cachedBeyondPresence: BeyondPresenceConfig | null = null;
+let cacheExpiresAt = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 function useIframeEmbed(): boolean {
   const flag = process.env.BEYOND_PRESENCE_EMBED_IFRAME?.trim().toLowerCase();
   return flag === 'true' || flag === '1' || flag === 'yes';
@@ -61,13 +65,17 @@ async function fetchAgentName(apiKey: string, agentId: string): Promise<string |
  * @see https://docs.bey.dev/integrations/speech-to-video/
  */
 export async function getBeyondPresenceConfig(): Promise<BeyondPresenceConfig> {
+  if (cachedBeyondPresence && Date.now() < cacheExpiresAt) {
+    return cachedBeyondPresence;
+  }
+
   const apiKey = process.env.BEYOND_PRESENCE_API_KEY?.trim();
   const agentId = process.env.BEYOND_PRESENCE_AGENT_ID?.trim();
   const iframe = useIframeEmbed();
   const livekit = isLiveKitConfigured() && Boolean(apiKey);
 
   if (!apiKey) {
-    return {
+    cachedBeyondPresence = {
       roomId: 'bp-unconfigured',
       agentId: null,
       agentName: null,
@@ -76,10 +84,12 @@ export async function getBeyondPresenceConfig(): Promise<BeyondPresenceConfig> {
       displayMode: 'stage',
       placeholder: true,
     };
+    cacheExpiresAt = Date.now() + CACHE_TTL_MS;
+    return cachedBeyondPresence;
   }
 
   if (!agentId && !livekit) {
-    return {
+    cachedBeyondPresence = {
       roomId: 'bp-unconfigured',
       agentId: null,
       agentName: null,
@@ -88,6 +98,8 @@ export async function getBeyondPresenceConfig(): Promise<BeyondPresenceConfig> {
       displayMode: 'stage',
       placeholder: true,
     };
+    cacheExpiresAt = Date.now() + CACHE_TTL_MS;
+    return cachedBeyondPresence;
   }
 
   const agentName = agentId ? await fetchAgentName(apiKey, agentId) : null;
@@ -97,7 +109,7 @@ export async function getBeyondPresenceConfig(): Promise<BeyondPresenceConfig> {
   if (livekit) displayMode = 'livekit';
   else if (iframe) displayMode = 'iframe';
 
-  return {
+  cachedBeyondPresence = {
     roomId: agentId ? `bp-${agentId}` : 'bp-livekit',
     agentId: agentId ?? null,
     agentName,
@@ -106,6 +118,8 @@ export async function getBeyondPresenceConfig(): Promise<BeyondPresenceConfig> {
     displayMode,
     placeholder: false,
   };
+  cacheExpiresAt = Date.now() + CACHE_TTL_MS;
+  return cachedBeyondPresence;
 }
 
 /** @deprecated Use getBeyondPresenceConfig */
