@@ -9,25 +9,25 @@ Amity is a **video-first AI emotional recovery system** for companies. It helps 
 ## Buildathon Constraints
 
 - 24-hour hackathon scope
-- Demo via **Trigger Simulation Portal** (no real Apple Watch, WHOOP, Teams, Slack, HR integrations)
+- Demo via **Employee Trigger Demo** (`/user/trigger-demo`) — simulates future Apple Watch, WHOOP, Teams, Slack, WhatsApp, calendar, call center, manual, wake word, and BP video/audio signals (no real integrations in MVP)
 - Privacy-first: company sees aggregated analytics only
 - Crisis safety layer required for high-risk language
 
 ## System Flow
 
 ```
-Trigger Portal
-  → Signal Engine
-  → Risk Engine
-  → Smartwatch Emotional Digital Twin
-  → Session Orchestrator
-  → Beyond Presence Recovery Room
-  → Gemini Emotional Agent
-  → ElevenLabs Voice
-  → Recovery Summary
-  → Privacy-safe Analytics
+User Device
+  → Consent + Session Gate
+  → Parallel: Trigger | Facial (optional) | Voice
+  → Shared Session Context
+  → Risk + Safety Engine
+  → POST /api/agent/respond (LLM turn)
+  → LiveKit agent speak + Bey lip-sync (or ElevenLabs fallback)
+  → Recovery Summary + Privacy-safe Analytics
   → Crisis Escalation (if needed)
 ```
+
+See `docs/ARCHITECTURE.md`.
 
 ## Tech Stack
 
@@ -37,9 +37,9 @@ Trigger Portal
 | Styling | Tailwind CSS, Framer Motion |
 | Charts | Recharts |
 | Icons | Lucide React |
-| Reasoning / safety / summaries | Gemini API |
-| Voice | ElevenLabs API |
-| Video avatar | Beyond Presence |
+| Reasoning / safety / summaries | Gemini API + OpenRouter (`AMITY_LLM_PROVIDER`) |
+| Voice | ElevenLabs (agent worker + optional server fallback) |
+| Video avatar | Beyond Presence + LiveKit Agents |
 | Deploy | Vercel |
 
 ## Core Modules (build order)
@@ -49,15 +49,32 @@ Trigger Portal
 3. **Demo store** — in-memory state for Sarah + triggers
 4. **Signal + risk engines** — deterministic demo logic
 5. **Trigger Portal UI** — main demo screen
-6. **Recovery room** — Beyond Presence wrapper + session flow
-7. **Gemini agent + safety** — responses + crisis classification
-8. **ElevenLabs voice** — TTS for recovery lines
+6. **Recovery room** — Beyond Presence wrapper + session flow ✅
+6b. **Facial awareness (browser)** — face-api.js, consent, local processing ✅
+6c. **Agent respond pipeline** — `/api/agent/respond`, turn-based LLM, performance opts ✅
+7. **LiveKit + Bey lip-sync** — agent worker ✅
+8. **Gemini Live** — WebSocket relay (see `docs/GEMINI_LIVE_PLAN.md`) — future
+9. **SSE stream LLM text** — show reply before avatar finishes — future
 9. **Summary + analytics** — before/after + company dashboard
 10. **Crisis mode** — escalation UI and handoff simulation
 
+## Role-Based Architecture
+
+Amity has two separated experiences (demo role switcher, no real auth — persisted in `localStorage` as `amity-role`):
+
+- **Company Admin** (`/admin/*`) — aggregated, privacy-safe analytics, employee status overview, escalation/integration settings. Never private content.
+- **Employee** (`/user/*`) — personal wellbeing space: recovery, trigger demo, summary, crisis support, profile.
+
+The **Trigger Demo is employee-side only** and is the employee's **single primary action** (a CTA, not a nav item) — absent from admin navigation entirely. A **single account dropdown** in the header switches roles; admin has no primary CTA (Dashboard is in nav). Home is role-aware. Hardcoded identities and role-aware navigation config live in `lib/demo-identities.ts` and `lib/navigation.ts`.
+
+## Future Video / Audio Crisis Detection (planned)
+
+During a Beyond Presence recovery call, Amity will receive transcript, emotional cues, and session signals. On detected self-harm intent, crisis language, unsafe behavior, severe distress, or violence risk → Crisis Safety Mode activates automatically: coaching stops, live human handoff begins, emergency options appear, user stays engaged until handoff. Today this is simulated via the Trigger Demo and user messages.
+
 ## Demo Persona
 
-- **Employee:** Sarah Chen, stable baseline → triggered by demo operator → recovery → calmer state
+- **Employee:** Sarah Perera (`EMP-001`), stable baseline → triggered via the employee Trigger Demo → recovery → calmer state
+- **Admin:** Admin User (`ADMIN-001`), company-level privacy-safe view only
 
 ## Privacy Principles
 
@@ -70,6 +87,10 @@ Trigger Portal
 **Avoid:** diagnose, treat mental illness, medical therapy, cure anxiety, detect depression with certainty.
 
 **Use:** emotional recovery, high-pressure workplace signal, private reset, recovery companion, crisis escalation bridge.
+
+**Facial awareness:** Optional face-api.js (`docs/FACIAL_AWARENESS.md`). Webcam requires consent; labels sent **per user message** to LLM — never raw video; crisis from user text/triggers — never face alone.
+
+**LLM / latency:** Turn-based requests (`docs/LLM_AND_RECOVERY_PIPELINE.md`). Server skips duplicate ElevenLabs when LiveKit is configured.
 
 ## Success Criteria (demo)
 

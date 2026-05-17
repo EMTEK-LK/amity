@@ -1,0 +1,21 @@
+{
+  "name": "amity-livekit-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx main.ts dev",
+    "start": "tsx main.ts start"
+  },
+  "dependencies": {
+    "@livekit/agents": "^1.0.37",
+    "@livekit/agents-plugin-bey": "^1.0.37",
+    "@livekit/agents-plugin-elevenlabs": "^1.0.37",
+    "@livekit/rtc-node": "^0.13.28",
+    "dotenv": "^16.6.1",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

@@ -16,34 +16,87 @@
 - Framer Motion: subtle enter transitions, pulse on risk change
 - Lucide icons throughout
 
-## Routes
+## Routes (role-based)
 
-| Route | Purpose |
-|-------|---------|
-| `/` | Entry / role picker or redirect to portal |
-| `/trigger-portal` | **Main demo** — triggers, twin, risk, timeline |
-| `/recovery-room` | Beyond Presence session |
-| `/summary` | Before/after recovery |
-| `/dashboard` | Company anonymous analytics |
-| `/crisis` | Crisis safety mode UI |
+| Route | Role | Purpose |
+|-------|------|---------|
+| `/` | both | Role split entry — Admin vs Employee experience |
+| `/admin/dashboard` | admin | Aggregated wellbeing KPIs |
+| `/admin/employees` | admin | High-level status only |
+| `/admin/analytics` | admin | Anonymized analytics |
+| `/admin/summary` | admin | Company recap |
+| `/admin/settings` | admin | Company / privacy / escalation / integration settings |
+| `/user/dashboard` | employee | Personal wellbeing state |
+| `/user/trigger-demo` | employee | **Main demo** — triggers, vitals, risk |
+| `/user/recovery` | employee | Beyond Presence recovery session |
+| `/user/summary` | employee | Private before/after recovery |
+| `/user/crisis` | employee | Crisis safety mode UI |
+| `/user/profile` | employee | Personal details + preferences |
+| `/user/settings` | employee | Personal preferences |
 
-## Trigger Portal (hero screen)
+Legacy routes (`/dashboard`, `/trigger-portal`, `/recovery-room`, `/crisis`) redirect into the new structure; `/summary` offers both summaries.
 
-### Mobile (single column)
+## Navigation behavior
 
-1. Employee card
-2. Trigger buttons (large, full width)
-3. Smartwatch / wellness circle + HR + stress + emotion
-4. Risk level + engine decision
-5. Timeline
-6. JSON payload preview (collapsible)
-7. Start recovery CTA
+- **One account dropdown** (identity name + role + `ChevronDown`) is the only role control — no separate Admin/Employee buttons, no duplicate role chips.
+- **Desktop:** `Amity | role nav | [Account ▾] [Theme]`. Admin has **no primary CTA** (Dashboard is in nav). Employee has a single **Start Recovery** primary CTA (→ `/user/recovery`). **Trigger Simulation** is a secondary nav item — recovery is the main user-facing action, the trigger flow is a demo tool.
+- **Mobile:** hamburger on the **left** + compact logo; theme toggle + compact profile icon on the right. Drawer **slides left → right** with brand, close, role/profile summary, account/role selector, role nav (active highlight), primary action (employee only), privacy footer. No duplicated desktop nav. Touch targets ≥ 44px; closes on item tap, `Esc`, or backdrop.
+- Home is **role-aware**: admin = company overview (Open Company Dashboard); employee = personal recovery (**Start a Private Recovery Call** / View My Dashboard, with a small "Open trigger simulation" link). Employee home never promotes the admin panel.
+- **Final polish:** user-facing copy avoids dev/internal terms (no npm/env/API/model names in main UI); recovery right column is grouped into Session Controls, Session Snapshot, Local Signal, Safety & Support, Voice; trigger demo JSON is "Demo signal preview" collapsed by default; crisis page shows configurable emergency options (numbers are company/country configurable).
+- **Crisis Safety Modal:** when `/api/agent/respond` returns `safetyLevel: crisis` (or `open_crisis_flow`), a calm centered modal (mobile: bottom sheet) opens once — title "Crisis Safety Mode", emergency support cards (119, 1990, wellbeing officer demo handoff, trusted contact placeholder), "Open Crisis Safety Flow" → `/user/crisis`, "Stay with Amity" closes but keeps a persistent **crisis banner** (with "Show support options" to reopen). `role="dialog"`, `aria-modal`, Escape/backdrop close, focus-visible. Conversation/chatbot stays visible; normal coaching CTAs pause. Reset clears modal + banner. Components: `components/crisis/CrisisSafetyModal.tsx`, `CrisisBanner.tsx`, `CrisisActionCard.tsx`.
+- `/admin` while employee-selected → polished "switch to Company Admin" demo notice (not real auth).
+
+## Employee Trigger Demo (`/user/trigger-demo`) — hero screen
+
+**Employee-side only.** Simulates future wearable, workplace, manual, wake word, video, and crisis classifier signals. Config-driven via `lib/demo-trigger-scenarios.ts` (10 scenarios).
+
+### Mobile (single column, app-like)
+
+1. Page header + demo notice
+2. Employee context card (Sarah Perera)
+3. Scenario cards (stacked, full width, large tap targets)
+4. Emotional digital twin (wellness ring + vitals)
+5. Risk engine panel
+6. Recovery channels
+7. Sticky bottom CTA (recovery or crisis)
+8. Signal timeline
+9. JSON payload (collapsible accordion)
+
+No horizontal scroll. Padding bottom for sticky CTA.
 
 ### Desktop (3 columns)
 
-| Left | Center | Right |
-|------|--------|-------|
-| Triggers, employee | Smartwatch twin, vitals | Risk engine, timeline, JSON |
+| Left (5/12) | Center (4/12) | Right (3/12) |
+|-------------|---------------|--------------|
+| Employee + 10 scenario cards | Emotional digital twin | Risk engine, channels, CTA, timeline |
+| | | |
+| **Bottom full width:** JSON payload preview | | |
+
+### Incoming Recovery Call (high-risk flow)
+
+- Selecting a **high-risk** (non-crisis) scenario shows a recovery-call panel near the risk decision and, with **Auto-call** on (default), rings an **Incoming Recovery Call** modal after ~800ms (`components/recovery/IncomingRecoveryCall.tsx` + `IncomingCallPulse.tsx`). Manual **Simulate incoming call** always available.
+- Modal: Amity brand, "Amity Recovery Guide", "Incoming recovery call", scenario context, risk label, calm pulse ring, **Answer** / **Not now**. Mobile = bottom sheet, large tap targets; desktop = centered ≤520px.
+- **Answer** → persist handoff (`lib/recovery-session-handoff.ts`) + scenario session context, route to `/user/recovery?source=trigger-demo&scenario=<id>`. Recovery Room shows a "Recovery call started from …" banner and a context-aware welcome.
+- **Not now** → modal closes, "Recovery call dismissed" note; Trigger Demo and manual Start Recovery stay usable. Low-risk scenarios never auto-call.
+- It is an in-app simulation only — never a real phone call; Amity is not an emergency service.
+
+### Crisis scenarios
+
+- **Future Video Signal** and **Critical Self-Harm Risk** → Crisis Mode, CTA routes to `/user/crisis`, coaching paused; crisis handoff opens the Crisis Safety Modal in the Recovery Room. Crisis is never the normal-recovery-only path.
+
+### Recovery Room (`/user/recovery`) ✅ (Step 6B — unified live session)
+
+- Consent gate → **one Start live recovery session action** (camera + mic together) → avatar panel → quick modes → session conversation → side panels
+- Unified media via `useRecoveryMediaSession` (session states: idle / requesting_permissions / active_listening / processing / responding / paused / crisis / ended / error)
+- **Large main panel:** LiveKit + Bey lip-sync when configured (`LiveKitAvatarVideo`); else coach stage
+- **Local facial awareness:** compact signal card; face-api ~1s locally; labels sent **per message** to LLM — never video
+- **Session conversation:** typed chat + debounced speech → one turn each → `POST /api/agent/respond`
+- **Signal status:** camera / mic / transcript / facial / LLM provider / voice (agent or fallback)
+- **Gemini context preview:** message source + summarized payload (facial labels, transcript)
+- Mobile: stacked (avatar → controls → conversation → context → signals)
+- Crisis: text/safety-classifier only → `/user/crisis`
+- Fallbacks: lip-sync down → ElevenLabs `audioUrl`; LLM keys missing → setup error (no mock coaching)
+- See `docs/LLM_AND_RECOVERY_PIPELINE.md`, `docs/RECOVERY_AVATAR.md`
 
 ## Component Map
 

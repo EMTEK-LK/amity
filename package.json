@@ -1,0 +1,40 @@
+{
+  "name": "amity",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "agent:install": "npm install --prefix agent-worker",
+    "agent:dev": "npm run dev --prefix agent-worker",
+    "agent:start": "npm run start --prefix agent-worker",
+    "recovery:dev": "npx concurrently -k \"npm run dev\" \"npm run agent:dev\""
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "encoding": "^0.1.13",
+    "face-api.js": "^0.22.2",
+    "framer-motion": "^12.23.12",
+    "livekit-client": "^2.19.0",
+    "livekit-server-sdk": "^2.15.3",
+    "lucide-react": "^0.542.0",
+    "next": "^15.5.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "recharts": "^3.1.2",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "^4.1.12",
+    "@types/node": "^22.17.2",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "eslint": "^9.33.0",
+    "eslint-config-next": "^15.5.2",
+    "tailwindcss": "^4.1.12",
+    "typescript": "^5.9.2"
+  }
+}
