@@ -56,21 +56,23 @@ export async function runRecoveryPipeline(
     : pickVoiceMode(false, stress);
 
   const speakText = [llm.response, llm.nextQuestion].filter(Boolean).join(' ').trim();
-  const voiceResult = skipServerTts
-    ? delegatedVoiceResult(voiceMode)
-    : await generateAmityVoice({
-        text: speakText,
-        voiceMode,
-      });
 
-  return {
-    llm,
-    voice: {
+  let voice: RecoveryPipelineVoice;
+  if (skipServerTts) {
+    voice = delegatedVoiceResult(voiceMode);
+  } else {
+    const voiceResult = await generateAmityVoice({ text: speakText, voiceMode });
+    voice = {
       audioUrl: voiceResult.audioUrl,
       status: voiceResult.audioStatus,
       voiceMode,
       placeholder: voiceResult.placeholder,
-    },
+    };
+  }
+
+  return {
+    llm,
+    voice,
     avatar: {
       displayMode: avatar.displayMode,
       embedUrl: avatar.embedUrl,

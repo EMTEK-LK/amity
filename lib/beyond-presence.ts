@@ -36,7 +36,7 @@ let cachedBeyondPresence: BeyondPresenceConfig | null = null;
 let cacheExpiresAt = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
-function useIframeEmbed(): boolean {
+function resolveIframeEmbed(): boolean {
   const flag = process.env.BEYOND_PRESENCE_EMBED_IFRAME?.trim().toLowerCase();
   return flag === 'true' || flag === '1' || flag === 'yes';
 }
@@ -71,7 +71,7 @@ export async function getBeyondPresenceConfig(): Promise<BeyondPresenceConfig> {
 
   const apiKey = process.env.BEYOND_PRESENCE_API_KEY?.trim();
   const agentId = process.env.BEYOND_PRESENCE_AGENT_ID?.trim();
-  const iframe = useIframeEmbed();
+  const iframe = resolveIframeEmbed();
   const livekit = isLiveKitConfigured() && Boolean(apiKey);
 
   if (!apiKey) {

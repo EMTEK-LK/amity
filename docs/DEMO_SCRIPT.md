@@ -3,7 +3,7 @@
 ## Setup
 
 - Open app on phone or laptop; dark mode
-- Header **account dropdown** set to **Sarah Perera · Employee** — Trigger Demo is the employee primary CTA (`/user/trigger-demo`)
+- Header **account dropdown** set to **Sarah Perera · Employee** — the employee primary CTA is **Start Recovery** (`/user/recovery`); **Trigger Simulation** (`/user/trigger-demo`) is a secondary demo tool in the nav
 - Use the account dropdown to switch to **Admin User · Company Admin** for the company dashboard act (`/admin/dashboard`)
 - Note: the account dropdown is demo-only (no real sign-in); role persists in `localStorage`
 - On mobile, the account selector and nav live in the left-side hamburger drawer (slides left → right)
@@ -22,10 +22,10 @@
 - Open **Trigger Demo** (`/user/trigger-demo`)
 - Show Sarah Perera context + connected signals (Watch, Work apps, Manual)
 - Click **Manager Conflict** (Microsoft Teams) — stress 84, HR 118, risk high
-- Point to emotional digital twin, risk engine reason, signal timeline
-- Expand **JSON payload** — show future API shape for judges
-- Optionally tap **Customer Escalation** or **Wake Word** to show variety
-- CTA: **Open Recovery Room**
+- Point to emotional digital twin, risk decision, signal timeline
+- After ~1s, Amity rings an **Incoming Recovery Call** ("Amity Recovery Guide is calling") with the scenario context and risk label
+- Tap **Answer** → routes to the Recovery Room with the scenario preloaded
+- (Optional) tap **Not now** to show the call can be dismissed; **Simulate incoming call** re-rings it
 
 ## Act 3 — Recovery session (90s)
 
@@ -33,7 +33,7 @@
 
 **Before demo:** run `npm run dev` and `npm run agent:dev` (or `npm run recovery:dev`). Lip-sync requires the agent worker.
 
-- Open **Recovery Room** (`/user/recovery`) from Trigger Demo
+- Arrive from the answered **Incoming Recovery Call** — note the "Recovery call started from Manager conflict" banner and the context-aware welcome that references the scenario
 - Accept consent → **Start live recovery session** (camera + mic together)
 - **Large left** = lip-synced Beyond Presence avatar (LiveKit); badge **Lip-sync live**
 - Requires LLM + LiveKit + Bey keys in `.env.local` (see README)
@@ -66,11 +66,12 @@
 
 > "If someone signals immediate danger, Amity stops coaching and moves to Crisis Safety Mode."
 
-- In Trigger Demo, select **Future Video Signal** or **Critical Self-Harm Risk**
-- Twin shows Crisis Mode, risk score 100
-- Copy: normal coaching paused, live handoff recommended
-- CTA changes to **Open Crisis Safety Flow** → `/user/crisis`
-- "The AI is not enough — we connect to real help."
+- In the Recovery Room, type **"I am not safe right now"** and send
+- **Crisis Safety Modal** opens immediately: emergency options — **119** (police), **1990** (emergency medical), wellbeing officer demo handoff, trusted contact placeholder
+- Tap **Stay with Amity** → modal closes, **crisis banner** stays (normal coaching paused, chatbot still visible); "Show support options" reopens it
+- Tap **Open Crisis Safety Flow** → `/user/crisis` (matching emergency cards, return / "I am safe now")
+- Emergency numbers are configurable by company/country; human handoff is simulated
+- "Amity is not an emergency service — we point you to real help, and never trigger crisis from a face alone."
 
 ## Closing line
 

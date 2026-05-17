@@ -9,11 +9,19 @@ import { AvatarSessionPanel } from '@/components/recovery/AvatarSessionPanel';
 import { ConversationPanel } from '@/components/recovery/ConversationPanel';
 import { VoiceOutputPanel } from '@/components/recovery/VoiceOutputPanel';
 import { SharedContextPanel } from '@/components/recovery/SharedContextPanel';
-import { SignalStatusPanel } from '@/components/recovery/SignalStatusPanel';
+import { SessionSnapshotCard } from '@/components/recovery/SessionSnapshotCard';
 import { SafetyStatusPanel } from '@/components/recovery/SafetyStatusPanel';
 import { QuickModeButtons } from '@/components/recovery/QuickModeButtons';
 import { SessionControls } from '@/components/recovery/SessionControls';
 import { GeminiContextPreview } from '@/components/recovery/GeminiContextPreview';
+import { CrisisSafetyModal } from '@/components/crisis/CrisisSafetyModal';
+import { CrisisBanner } from '@/components/crisis/CrisisBanner';
+import { DEMO_EMPLOYEE } from '@/lib/demo-identities';
+import {
+  clearRecoveryHandoffContext,
+  getRecoveryHandoffContext,
+} from '@/lib/recovery-session-handoff';
+import type { RecoveryHandoffContext } from '@/types/recovery-handoff';
 import { useRecoveryMediaSession } from '@/hooks/useRecoveryMediaSession';
 import { useRecoveryVoicePlayback } from '@/hooks/useRecoveryVoicePlayback';
 import {
@@ -95,6 +103,9 @@ export default function RecoveryPage() {
   const [avatarOutput, setAvatarOutput] = useState<AgentAvatarOutput | null>(null);
   const [speakRequest, setSpeakRequest] = useState<RecoverySpeakRequest | null>(null);
   const [lipSyncFallbackVoice, setLipSyncFallbackVoice] = useState(false);
+  const [crisisModalOpen, setCrisisModalOpen] = useState(false);
+  const [crisisPhrase, setCrisisPhrase] = useState<string | null>(null);
+  const [handoff, setHandoff] = useState<RecoveryHandoffContext | null>(null);
   const speakRequestCounterRef = useRef(0);
   const liveKitWasConnectedRef = useRef(false);
 
@@ -209,6 +220,11 @@ export default function RecoveryPage() {
     }
   }, [session.transcript, session.interimTranscript, session.sessionState]);
 
+  // Read incoming-call handoff context once (set by the Trigger Demo).
+  useEffect(() => {
+    setHandoff(getRecoveryHandoffContext());
+  }, []);
+
   useEffect(() => {
     if (!consentAccepted || paused || crisis) return;
     const t = setInterval(() => setElapsed((e) => e + 1), 1000);
@@ -216,7 +232,7 @@ export default function RecoveryPage() {
   }, [consentAccepted, paused, crisis]);
 
   const activateCrisis = useCallback(
-    (ctx: SharedSessionContext, responseText: string) => {
+    (ctx: SharedSessionContext, responseText: string, detectedPhrase?: string) => {
       prepareCrisisEscalation(ctx);
       const crisisCtx: SharedSessionContext = {
         ...ctx,
@@ -230,6 +246,8 @@ export default function RecoveryPage() {
       session.markCrisis();
       setMessages((prev) => [...prev, newMessage('assistant', responseText)]);
       saveRecoveryContext(crisisCtx);
+      setCrisisPhrase(detectedPhrase ?? null);
+      setCrisisModalOpen(true);
     },
     [session]
   );
@@ -299,7 +317,7 @@ export default function RecoveryPage() {
         }
 
         if (result.crisis) {
-          activateCrisis(ctx, assistantText);
+          activateCrisis(ctx, assistantText, trimmed);
           return;
         }
 
@@ -397,13 +415,25 @@ export default function RecoveryPage() {
       setContext(ctx);
       saveRecoveryContext(ctx);
       saveStoredConsent(consent);
-      setMessages([
-        newMessage(
-          'assistant',
-          'Welcome back. This is your private recovery space. Speak when you are ready, or type below.'
-        ),
-      ]);
+
+      const activeHandoff = getRecoveryHandoffContext();
+      const firstName = DEMO_EMPLOYEE.name.split(' ')[0];
+      const welcome =
+        activeHandoff && !activeHandoff.isCrisis
+          ? `Welcome back, ${firstName}. I saw a high-pressure signal after the ${activeHandoff.scenarioLabel.toLowerCase()} scenario. We can slow the moment down first, or talk through what happened.`
+          : activeHandoff && activeHandoff.isCrisis
+            ? `I'm here with you, ${firstName}. Normal coaching is paused — let's look at support options together.`
+            : 'Welcome back. This is your private recovery space. Speak when you are ready, or type below.';
+      setMessages([newMessage('assistant', welcome)]);
       session.startSession({ withCamera });
+
+      if (activeHandoff?.isCrisis) {
+        setSafetyState('crisis');
+        setGeminiProvider('safety');
+        session.markCrisis();
+        setCrisisPhrase(activeHandoff.scenarioLabel);
+        setCrisisModalOpen(true);
+      }
 
       void fetch('/api/recovery/bootstrap')
         .then((r) => r.json())
@@ -433,6 +463,10 @@ export default function RecoveryPage() {
     setAvatarOutput(null);
     setSpeakRequest(null);
     setLipSyncFallbackVoice(false);
+    setCrisisModalOpen(false);
+    setCrisisPhrase(null);
+    clearRecoveryHandoffContext();
+    setHandoff(null);
     session.stopSession();
   };
 
@@ -457,8 +491,8 @@ export default function RecoveryPage() {
           />
         </div>
         <p className="mt-6 text-center text-sm">
-          <Link href="/user/trigger-demo" className="text-[var(--amity-primary)] hover:underline">
-            Return to Trigger Demo
+          <Link href="/user/dashboard" className="text-[var(--amity-primary)] hover:underline">
+            Back to my dashboard
           </Link>
         </p>
       </PageContainer>
@@ -501,6 +535,18 @@ export default function RecoveryPage() {
             onLipSyncUnavailable={onLipSyncUnavailable}
             isSpeaking={voiceOutput?.status === 'ready'}
           />
+          {handoff && !crisis && (
+            <div
+              role="status"
+              className="rounded-2xl border border-[var(--amity-border)] bg-[var(--amity-bg-subtle)] px-4 py-3 text-sm text-[var(--amity-text)]"
+            >
+              Recovery call started from{' '}
+              <span className="font-medium">{handoff.scenarioLabel}</span>
+            </div>
+          )}
+          {crisis && (
+            <CrisisBanner onShowSupport={() => setCrisisModalOpen(true)} />
+          )}
           <QuickModeButtons
             selected={selectedMode}
             onSelect={setSelectedMode}
@@ -585,18 +631,15 @@ export default function RecoveryPage() {
             preview={geminiPreview}
             geminiProvider={geminiProvider ?? undefined}
           />
-          <SignalStatusPanel
-            context={context}
-            cameraEnabled={cameraActive}
-            micEnabled={micActive}
-            micStatus={session.microphoneStatus}
+          <SessionSnapshotCard
             cameraStatus={session.cameraStatus}
+            micStatus={session.microphoneStatus}
             transcriptStatus={session.transcriptStatus}
-            sessionStarted={consentAccepted}
             facialStatus={session.facialStatus}
             geminiProvider={geminiProvider}
             voiceStatus={voiceOutput?.status ?? null}
-            avatarDisplayMode={avatarOutput?.displayMode ?? null}
+            avatarReady={Boolean(avatarOutput && avatarOutput.placeholder === false)}
+            sessionStarted={consentAccepted}
           />
           <SafetyStatusPanel safetyState={safetyState} crisis={crisis} />
           <div className="hidden lg:block">
@@ -611,9 +654,17 @@ export default function RecoveryPage() {
       </div>
 
       <p className="mt-6 text-center text-xs text-[var(--amity-text-muted)]">
-        Summarized transcript and facial cues go to the recovery agent — never raw camera video or
-        mic audio. Voice: ElevenLabs. Avatar: Beyond Presence when configured.
+        Your session is private. Only summarized session context is used — never raw camera
+        video or microphone audio.
       </p>
+
+      <CrisisSafetyModal
+        open={crisisModalOpen}
+        onClose={() => setCrisisModalOpen(false)}
+        onOpenCrisisPage={() => setCrisisModalOpen(false)}
+        detectedPhrase={crisisPhrase ?? undefined}
+        employeeName={DEMO_EMPLOYEE.name.split(' ')[0]}
+      />
     </PageContainer>
   );
 }

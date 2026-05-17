@@ -39,9 +39,11 @@ Legacy routes (`/dashboard`, `/trigger-portal`, `/recovery-room`, `/crisis`) red
 ## Navigation behavior
 
 - **One account dropdown** (identity name + role + `ChevronDown`) is the only role control — no separate Admin/Employee buttons, no duplicate role chips.
-- **Desktop:** `Amity | role nav | [Account ▾] [Theme]`. Admin has **no primary CTA** (Dashboard is in nav). Employee has a single **Trigger Demo** primary CTA; Trigger Demo is **not** a nav item.
+- **Desktop:** `Amity | role nav | [Account ▾] [Theme]`. Admin has **no primary CTA** (Dashboard is in nav). Employee has a single **Start Recovery** primary CTA (→ `/user/recovery`). **Trigger Simulation** is a secondary nav item — recovery is the main user-facing action, the trigger flow is a demo tool.
 - **Mobile:** hamburger on the **left** + compact logo; theme toggle + compact profile icon on the right. Drawer **slides left → right** with brand, close, role/profile summary, account/role selector, role nav (active highlight), primary action (employee only), privacy footer. No duplicated desktop nav. Touch targets ≥ 44px; closes on item tap, `Esc`, or backdrop.
-- Home is **role-aware**: admin = company overview (Open Company Dashboard); employee = personal recovery (Start Trigger Demo / Open My Dashboard). Employee home never promotes the admin panel.
+- Home is **role-aware**: admin = company overview (Open Company Dashboard); employee = personal recovery (**Start a Private Recovery Call** / View My Dashboard, with a small "Open trigger simulation" link). Employee home never promotes the admin panel.
+- **Final polish:** user-facing copy avoids dev/internal terms (no npm/env/API/model names in main UI); recovery right column is grouped into Session Controls, Session Snapshot, Local Signal, Safety & Support, Voice; trigger demo JSON is "Demo signal preview" collapsed by default; crisis page shows configurable emergency options (numbers are company/country configurable).
+- **Crisis Safety Modal:** when `/api/agent/respond` returns `safetyLevel: crisis` (or `open_crisis_flow`), a calm centered modal (mobile: bottom sheet) opens once — title "Crisis Safety Mode", emergency support cards (119, 1990, wellbeing officer demo handoff, trusted contact placeholder), "Open Crisis Safety Flow" → `/user/crisis`, "Stay with Amity" closes but keeps a persistent **crisis banner** (with "Show support options" to reopen). `role="dialog"`, `aria-modal`, Escape/backdrop close, focus-visible. Conversation/chatbot stays visible; normal coaching CTAs pause. Reset clears modal + banner. Components: `components/crisis/CrisisSafetyModal.tsx`, `CrisisBanner.tsx`, `CrisisActionCard.tsx`.
 - `/admin` while employee-selected → polished "switch to Company Admin" demo notice (not real auth).
 
 ## Employee Trigger Demo (`/user/trigger-demo`) — hero screen
@@ -70,9 +72,17 @@ No horizontal scroll. Padding bottom for sticky CTA.
 | | | |
 | **Bottom full width:** JSON payload preview | | |
 
+### Incoming Recovery Call (high-risk flow)
+
+- Selecting a **high-risk** (non-crisis) scenario shows a recovery-call panel near the risk decision and, with **Auto-call** on (default), rings an **Incoming Recovery Call** modal after ~800ms (`components/recovery/IncomingRecoveryCall.tsx` + `IncomingCallPulse.tsx`). Manual **Simulate incoming call** always available.
+- Modal: Amity brand, "Amity Recovery Guide", "Incoming recovery call", scenario context, risk label, calm pulse ring, **Answer** / **Not now**. Mobile = bottom sheet, large tap targets; desktop = centered ≤520px.
+- **Answer** → persist handoff (`lib/recovery-session-handoff.ts`) + scenario session context, route to `/user/recovery?source=trigger-demo&scenario=<id>`. Recovery Room shows a "Recovery call started from …" banner and a context-aware welcome.
+- **Not now** → modal closes, "Recovery call dismissed" note; Trigger Demo and manual Start Recovery stay usable. Low-risk scenarios never auto-call.
+- It is an in-app simulation only — never a real phone call; Amity is not an emergency service.
+
 ### Crisis scenarios
 
-- **Future Video Signal** and **Critical Self-Harm Risk** → Crisis Mode, score 100, CTA routes to `/user/crisis`, coaching paused copy shown.
+- **Future Video Signal** and **Critical Self-Harm Risk** → Crisis Mode, CTA routes to `/user/crisis`, coaching paused; crisis handoff opens the Crisis Safety Modal in the Recovery Room. Crisis is never the normal-recovery-only path.
 
 ### Recovery Room (`/user/recovery`) ✅ (Step 6B — unified live session)
 

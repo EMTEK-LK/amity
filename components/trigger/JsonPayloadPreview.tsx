@@ -44,9 +44,9 @@ export function JsonPayloadPreview({
           aria-expanded={open}
         >
           <div>
-            <CardTitle className="text-base">Signal payload</CardTitle>
+            <CardTitle className="text-base">Demo signal preview</CardTitle>
             <p className="mt-0.5 text-xs text-[var(--amity-text-muted)]">
-              Demo JSON · future API readiness
+              Example signal Amity would receive — collapsed by default
             </p>
           </div>
           <ChevronDown

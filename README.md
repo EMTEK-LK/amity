@@ -21,7 +21,11 @@ Amity is **workplace wellbeing support** — not a medical or therapy product. I
 
 ## Current Build Status
 
-**Recovery Room (Step 8)** — unified live session with camera + mic, Web Speech transcript, and typed chat → **`POST /api/agent/respond`** (one turn = one LLM request; summarized context only). When LiveKit is configured, server **skips duplicate ElevenLabs TTS**; a **lip-synced Beyond Presence avatar** speaks via the local **agent worker** (`npm run agent:dev`) on data topic `amity/speak`. See **`docs/LLM_AND_RECOVERY_PIPELINE.md`** and **`docs/RECOVERY_AVATAR.md`**.
+**Final product polish** — recovery-first home (Start a Private Recovery Call), clean user-facing copy (no dev/env/API terms in the main UI; technical detail only in collapsed previews), consolidated recovery right column (Session Controls, Session Snapshot, Local Signal, Safety & Support, Voice), polished trigger simulation (collapsed demo signal preview), and a calm crisis support page with configurable emergency options.
+
+**Incoming Recovery Call** — when a high-risk Trigger Demo scenario is selected, Amity simulates a proactive in-app recovery call: a calm ringing screen ("Amity Recovery Guide is calling") with the scenario context and risk label. Answering opens the Recovery Room with that context preloaded (session banner + context-aware welcome); declining keeps the demo usable. Crisis scenarios route to the Crisis Safety Flow instead. This is an in-app simulation — not a real phone call, and Amity is not an emergency service.
+
+**Recovery Room (Step 8)** — unified live session with camera + mic, live transcript, and typed chat → recovery agent (one turn = one request; summarized context only). When configured, a lip-synced avatar speaks via the local agent worker. See **`docs/LLM_AND_RECOVERY_PIPELINE.md`** and **`docs/RECOVERY_AVATAR.md`**.
 
 | Feature | Status |
 |---------|--------|
@@ -127,7 +131,9 @@ User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Share
 - **Facial awareness** is optional and requires explicit consent (`types/consent.ts`)
 - **Employee sessions** stay private — admin sees aggregates only
 - **Crisis mode** stops normal coaching and routes to human escalation simulation
-- No medical diagnosis language; visible cues are indicative only
+- **Crisis Safety Modal** — when the safety classifier flags crisis language in the Recovery Room, a calm modal opens immediately with emergency support options and a persistent crisis banner; "Stay with Amity" keeps the banner, "Open Crisis Safety Flow" routes to `/user/crisis`
+- Emergency numbers are configurable by company/country; the Sri Lanka demo uses **119** (police) and **1990** (emergency medical). Human handoff is simulated in this MVP — **Amity is not an emergency service and does not call anyone automatically**
+- No medical diagnosis language; visible cues are indicative only; crisis is never triggered by facial expression alone
 
 ## Recovery Room
 

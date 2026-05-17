@@ -12,6 +12,7 @@ import {
 import {
   Badge,
   Button,
+  ButtonLink,
   Card,
   CardContent,
   CardDescription,
@@ -34,6 +35,7 @@ const escalationSteps = [
 export default function CrisisSupportPage() {
   const [danger, setDanger] = useState<Danger>('unknown');
   const [handoff, setHandoff] = useState<Handoff>('idle');
+  const [safeNow, setSafeNow] = useState(false);
 
   useEffect(() => {
     if (handoff !== 'connecting') return;
@@ -100,25 +102,74 @@ export default function CrisisSupportPage() {
         </CardContent>
       </Card>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-3">
-        <Button variant="danger" size="lg" fullWidth>
-          <PhoneCall className="h-4 w-4" aria-hidden />
-          Emergency line
-        </Button>
-        <Button
-          variant="secondary"
-          size="lg"
-          fullWidth
-          onClick={() => setHandoff('connecting')}
-          disabled={handoff !== 'idle'}
-        >
-          <UserCheck className="h-4 w-4" aria-hidden />
-          Wellbeing officer
-        </Button>
-        <Button variant="secondary" size="lg" fullWidth>
-          <LifeBuoy className="h-4 w-4" aria-hidden />
-          Trusted contact
-        </Button>
+      <section className="mt-6 space-y-3">
+        <h2 className="text-base font-semibold text-[var(--amity-text)]">
+          Immediate support options
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <a
+            href="tel:119"
+            className="flex items-center gap-3 rounded-2xl border border-[var(--amity-danger)]/30 bg-[var(--amity-danger-muted)] p-4 transition-colors hover:border-[var(--amity-danger)]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amity-ring)]"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--amity-danger)]/15 text-[var(--amity-danger)]">
+              <PhoneCall className="h-5 w-5" aria-hidden />
+            </span>
+            <span>
+              <span className="block font-semibold text-[var(--amity-text)]">
+                Police emergency
+              </span>
+              <span className="block text-sm text-[var(--amity-text-muted)]">Call 119</span>
+            </span>
+          </a>
+          <a
+            href="tel:1990"
+            className="flex items-center gap-3 rounded-2xl border border-[var(--amity-danger)]/30 bg-[var(--amity-danger-muted)] p-4 transition-colors hover:border-[var(--amity-danger)]/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amity-ring)]"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--amity-danger)]/15 text-[var(--amity-danger)]">
+              <PhoneCall className="h-5 w-5" aria-hidden />
+            </span>
+            <span>
+              <span className="block font-semibold text-[var(--amity-text)]">
+                Emergency medical support
+              </span>
+              <span className="block text-sm text-[var(--amity-text-muted)]">Call 1990</span>
+            </span>
+          </a>
+          <button
+            type="button"
+            onClick={() => setHandoff('connecting')}
+            disabled={handoff !== 'idle'}
+            className="flex items-center gap-3 rounded-2xl border border-[var(--amity-border)] bg-[var(--amity-surface)] p-4 text-left transition-colors hover:bg-[var(--amity-bg-subtle)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amity-ring)] disabled:opacity-60"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--amity-primary-muted)] text-[var(--amity-primary)]">
+              <UserCheck className="h-5 w-5" aria-hidden />
+            </span>
+            <span>
+              <span className="block font-semibold text-[var(--amity-text)]">
+                Company wellbeing officer
+              </span>
+              <span className="block text-sm text-[var(--amity-text-muted)]">
+                Connect now (demo contact)
+              </span>
+            </span>
+          </button>
+          <div className="flex items-center gap-3 rounded-2xl border border-[var(--amity-border)] bg-[var(--amity-surface)] p-4">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--amity-bg-subtle)] text-[var(--amity-text-muted)]">
+              <LifeBuoy className="h-5 w-5" aria-hidden />
+            </span>
+            <span>
+              <span className="block font-semibold text-[var(--amity-text)]">
+                Trusted contact
+              </span>
+              <span className="block text-sm text-[var(--amity-text-muted)]">Not configured</span>
+            </span>
+          </div>
+        </div>
+        <p className="text-xs leading-relaxed text-[var(--amity-text-muted)]">
+          Emergency numbers are configurable by company and country. Amity does not call
+          emergency services for you and is not a replacement for emergency support — please
+          reach a real person now if you are in danger.
+        </p>
       </section>
 
       {handoff !== 'idle' && (
@@ -176,11 +227,31 @@ export default function CrisisSupportPage() {
           </ol>
           <p className="mt-6 rounded-xl border border-[var(--amity-border)] bg-[var(--amity-bg-subtle)] px-4 py-3 text-sm leading-relaxed text-[var(--amity-text-muted)]">
             Amity never presents AI as a substitute for real help. In a real crisis, human
-            support always comes first. Future in-call video/audio analysis can trigger this
-            mode automatically.
+            support always comes first.
           </p>
         </CardContent>
       </Card>
+
+      <section className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <ButtonLink href="/user/recovery" variant="secondary" size="lg" fullWidth>
+          Return to recovery session
+        </ButtonLink>
+        <Button
+          variant="ghost"
+          size="lg"
+          fullWidth
+          onClick={() => setSafeNow(true)}
+          aria-pressed={safeNow}
+        >
+          I am safe now
+        </Button>
+      </section>
+      {safeNow && (
+        <p className="mt-3 rounded-xl border border-[var(--amity-success)]/30 bg-[var(--amity-success-muted)] px-4 py-3 text-sm leading-relaxed text-[var(--amity-text)]">
+          Glad you are safe. Stay with someone you trust if you can. You can return to a
+          private recovery session whenever you are ready.
+        </p>
+      )}
     </PageContainer>
   );
 }

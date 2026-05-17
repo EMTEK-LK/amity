@@ -31,7 +31,7 @@ export function SafetyStatusPanel({ safetyState, crisis }: SafetyStatusPanelProp
     <Card variant={crisis ? 'danger' : 'default'}>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base">Safety</CardTitle>
+          <CardTitle className="text-base">Safety &amp; Support</CardTitle>
           <StatusChip status={toChip(safetyState)} />
         </div>
       </CardHeader>
@@ -50,8 +50,8 @@ export function SafetyStatusPanel({ safetyState, crisis }: SafetyStatusPanelProp
           </>
         ) : (
           <p className="text-xs leading-relaxed text-[var(--amity-text-muted)]">
-            Session text is checked for safety signals. Crisis language routes to human
-            escalation — never AI-only support.
+            Session text is checked for safety signals. If something serious comes up, Amity
+            shows immediate human support options.
           </p>
         )}
       </CardContent>

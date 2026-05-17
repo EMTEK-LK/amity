@@ -4,8 +4,55 @@
 
 ## Current Status
 
-**Phase:** Step 8 + performance — LiveKit lip-sync, turn-based LLM, optimized `/api/agent/respond`  
-**Overall:** Recovery Room has unified camera/mic/chat, Gemini/OpenRouter coaching, agent-worker TTS + Bey lip-sync, ElevenLabs browser fallback only when needed
+**Phase:** Incoming Recovery Call  
+**Overall:** Trigger Demo now connects high-risk signals to a proactive in-app recovery call flow
+
+## Completed Tasks (Incoming Recovery Call)
+
+- [x] Incoming Recovery Call flow added (`components/recovery/IncomingRecoveryCall.tsx`, `IncomingCallPulse.tsx`)
+- [x] High-risk trigger scenarios launch ringing call UI (auto-call after 800ms, toggle, manual simulate)
+- [x] Answering the call opens Recovery Room with selected scenario context
+- [x] Recovery handoff context persisted locally (`lib/recovery-session-handoff.ts`, `types/recovery-handoff.ts`)
+- [x] Recovery Room shows "Recovery call started from …" banner + context-aware welcome
+- [x] Crisis scenarios route to Crisis Safety Flow (no normal-recovery-only path); crisis handoff opens crisis modal
+- [x] Trigger Demo recovery-call panel added near the risk decision
+- [x] Decline → dismissed message; low-risk → no auto-call (manual Start Recovery preserved)
+- [x] Mobile incoming-call UI (bottom sheet, large tap targets)
+- [x] Docs updated
+
+## Completed Tasks (Crisis Safety Modal)
+
+- [x] Crisis Safety Modal added (`components/crisis/CrisisSafetyModal.tsx`)
+- [x] Crisis banner added to Recovery Room (`components/crisis/CrisisBanner.tsx`)
+- [x] Reusable emergency support cards (`components/crisis/CrisisActionCard.tsx`)
+- [x] Sri Lanka demo support numbers added as configurable options (119, 1990)
+- [x] Wellbeing officer handoff demo state ("Wellbeing officer handoff prepared")
+- [x] Crisis modal integrated with safety classifier response (`safetyLevel: crisis` / `open_crisis_flow`)
+- [x] Stay-in-session keeps banner; "Show support options" reopens modal; reset clears both
+- [x] Crisis page polished (119 / 1990 / wellbeing officer / trusted contact / return / "I am safe now")
+- [x] Docs updated
+
+## Completed Tasks (Header Restore)
+
+- [x] Header navigation restored to previous clean role-based version
+- [x] Trigger Demo removed from normal employee nav
+- [x] Employee Trigger Demo kept as separate primary CTA (`/user/trigger-demo`)
+- [x] Admin nav kept company-only (no Trigger Demo, no extra Dashboard CTA)
+- [x] Mobile drawer navigation corrected (role-specific nav; Trigger Demo as drawer primary action)
+- [x] Page-level final polish (home, recovery, trigger demo, crisis) preserved
+
+## Completed Tasks (Final Polish)
+
+- [x] Home CTA changed to recovery-first ("Start a Private Recovery Call" / "View My Dashboard")
+- [x] Header reverted to previous clean nav (employee CTA = Trigger Demo; no Trigger Simulation nav item)
+- [x] Recovery page user-facing copy cleaned — no npm/env/API/dev text in main UI
+- [x] Developer/internal labels removed from main UI (dev details only in collapsed previews)
+- [x] Recovery right-side panels consolidated; compact `SessionSnapshotCard` replaces the long signal list
+- [x] Safety & Support card copy improved
+- [x] Crisis support improved — configurable emergency options (SL demo: 119, 1990), `tel:` links, wellbeing officer + trusted contact placeholders, "Return to recovery" / "I am safe now"
+- [x] Trigger Demo copy cleaned ("Risk decision", "Demo signal preview"); JSON collapsed by default
+- [x] Mobile + desktop layout polished
+- [x] Docs updated
 
 ## Completed Tasks (Step 6A)
 
@@ -53,8 +100,9 @@
 
 ## Next Task
 
+- [ ] Final demo rehearsal and submission review
+- [ ] Optional ElevenLabs / Beyond Presence integration only if time allows
 - [ ] Production deploy checklist (env vars, agent worker hosting)
-- [ ] Stream LLM text to UI before avatar finishes speaking (SSE)
 - [ ] Gemini Live streaming (see `docs/GEMINI_LIVE_PLAN.md`)
 
 ## How to run (Recovery + lip-sync)
@@ -79,10 +127,28 @@ Open `/user/recovery` — requires `GEMINI_*` or `OPENROUTER_*`, `ELEVENLABS_*`,
 | Check | Status |
 |-------|--------|
 | `npm run dev` | Pass |
-| `npm run agent:dev` → `joining room` | Manual |
-| Lip-sync video + audio | Manual |
-| Single speak per reply (no duplicate) | Manual |
-| ElevenLabs fallback when agent down | Manual |
+| `npm run lint` | Pass |
+| `npm run build` | Pass (27 routes) |
+| High-risk scenario → incoming call rings | Pass |
+| Answer → Recovery Room with scenario context + welcome | Pass |
+| Decline → dismissed message; manual simulate works | Pass |
+| Low-risk → no auto-call; Start Recovery preserved | Pass |
+| Crisis scenario → Crisis Safety Flow (no normal-only) | Pass |
+| Incoming call mobile 360 / 390 / 430 | Reviewed |
+| Crisis phrase in Recovery Room → modal opens | Pass |
+| Modal: 119 / 1990 tel links, wellbeing officer, stay-in-session | Pass |
+| Stay-in-session keeps crisis banner; reopen from banner | Pass |
+| Open Crisis Safety Flow → `/user/crisis` | Pass |
+| Mobile modal 360 / 390 / 430 | Reviewed |
+| Desktop header — employee mode (nav + Trigger Demo CTA) | Pass |
+| Desktop header — admin mode (nav, no CTA) | Pass |
+| Mobile drawer — role-specific nav only | Pass |
+| `/` recovery-first CTA | Pass |
+| `/user/recovery` — no dev text in main UI | Pass |
+| `/user/trigger-demo` — JSON collapsed | Pass |
+| `/user/crisis` — emergency options + tel links | Pass |
+| Mobile 360 / 390 / 430 | Reviewed |
+| Desktop 1280 / 1440 | Reviewed |
 | Crisis flow | Manual |
 | Admin aggregates only (no transcripts) | Manual |
 

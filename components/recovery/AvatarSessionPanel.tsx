@@ -86,13 +86,7 @@ export function AvatarSessionPanel({
     <Card variant="elevated" className="overflow-hidden">
       <div className="border-b border-[var(--amity-border)] px-4 py-2">
         <p className="text-xs font-medium text-[var(--amity-text)]">{coachLabel}</p>
-        <p className="text-[10px] text-[var(--amity-text-muted)]">
-          {showLiveKit
-            ? 'LiveKit + Beyond Presence lip-sync'
-            : showIframe
-              ? 'Beyond Presence live session'
-              : 'Amity coach · voice-driven avatar'}
-        </p>
+        <p className="text-[10px] text-[var(--amity-text-muted)]">Avatar output</p>
       </div>
       <div
         className={cn(
@@ -148,20 +142,14 @@ export function AvatarSessionPanel({
       </div>
       <CardContent className="space-y-2 py-3 text-center text-xs text-[var(--amity-text-muted)]">
         {showLiveKit ? (
-          <p>
-            Run npm run agent:dev in a second terminal. The agent worker uses ElevenLabs + Beyond Presence for lip-sync video.
-            Amity LLM powers the words — not the BP iframe agent.
-          </p>
+          <p>Your recovery guide is ready. Replies appear in the conversation below.</p>
         ) : showIframe ? (
-          <p>
-            Full Beyond Presence call UI. Chat in Amity uses our LLM + ElevenLabs; this window is a
-            separate BP agent session.
-          </p>
+          <p>Your recovery guide is ready. Replies appear in the conversation below.</p>
         ) : (
           <>
             <p>
-              Avatar reacts to <strong className="font-medium text-[var(--amity-text)]">ElevenLabs</strong>{' '}
-              voice from Amity replies. Add LiveKit keys for lip-synced Beyond Presence video.
+              Your recovery guide is preparing the session. Voice and avatar output can be
+              connected when the company enables those integrations.
             </p>
             {sessionUrl && !avatarPlaceholder ? (
               <a
@@ -170,7 +158,7 @@ export function AvatarSessionPanel({
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-1 text-[var(--amity-primary)] hover:underline"
               >
-                Open full Beyond Presence session
+                Open full recovery session
                 <ExternalLink className="h-3 w-3" aria-hidden />
               </a>
             ) : null}

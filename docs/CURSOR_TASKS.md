@@ -135,6 +135,16 @@ Work **one task at a time**. Update `docs/BUILD_PROGRESS.md` after each.
 - [ ] Fill team names, demo URL, repo URL
 - [ ] Final read-through and submit
 
+## Phase 12 — Final product polish ✅
+
+- [x] Recovery-first home + header CTA ("Start Recovery"); Trigger Simulation secondary
+- [x] User-facing dev/internal copy removed from Recovery (collapsed previews only)
+- [x] Recovery right column consolidated; `SessionSnapshotCard` added
+- [x] Crisis support: configurable emergency options + tel links, return / "I am safe now"
+- [x] Trigger demo copy cleaned; demo signal preview collapsed by default
+- [x] Mobile + desktop polish; `npm run lint` / `npm run build` pass
+- [ ] Final demo rehearsal
+
 ## Rules for every task
 
 1. Small, focused diff

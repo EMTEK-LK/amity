@@ -20,7 +20,7 @@ export function RiskEnginePanel({ scenario, riskScore, statusType }: RiskEngineP
     <Card variant="elevated">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-base">Risk engine</CardTitle>
+          <CardTitle className="text-base">Risk decision</CardTitle>
           <StatusChip status={status} />
         </div>
         <CardDescription>

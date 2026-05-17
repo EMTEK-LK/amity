@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { PhoneCall, ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { Button, ButtonLink } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { PageContainer } from '@/components/ui/PageContainer';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -13,17 +16,30 @@ import { RiskEnginePanel } from '@/components/trigger/RiskEnginePanel';
 import { ScenarioCard } from '@/components/trigger/ScenarioCard';
 import { SignalTimeline } from '@/components/trigger/SignalTimeline';
 import { TriggerDemoActions } from '@/components/trigger/TriggerDemoActions';
+import { IncomingRecoveryCall } from '@/components/recovery/IncomingRecoveryCall';
 import {
   TRIGGER_SCENARIOS,
+  buildSessionContextFromScenario,
   buildSignalTimeline,
   buildTriggerPayload,
   defaultStableState,
   getTriggerScenarioById,
   scenarioToTwinState,
 } from '@/lib/demo-trigger-scenarios';
+import { saveRecoveryContext } from '@/lib/recovery-session-bridge';
+import { saveRecoveryHandoffContext } from '@/lib/recovery-session-handoff';
+import { DEMO_EMPLOYEE } from '@/lib/demo-identities';
+
+type CallState = 'idle' | 'ringing' | 'declined';
+
+const AUTO_CALL_DELAY_MS = 800;
 
 export default function TriggerDemoPage() {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [autoCall, setAutoCall] = useState(true);
+  const [callState, setCallState] = useState<CallState>('idle');
+  const ringTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const scenario = selectedId ? getTriggerScenarioById(selectedId) ?? null : null;
   const twin = scenario ? scenarioToTwinState(scenario) : defaultStableState;
@@ -31,28 +47,61 @@ export default function TriggerDemoPage() {
   const payload = scenario ? buildTriggerPayload(scenario) : null;
 
   const statusType = twin.statusType;
+  const isCrisis = scenario?.isCrisis ?? false;
+  const isHighRisk = !isCrisis && scenario?.riskLevel === 'high';
 
-  const handleReset = () => setSelectedId(null);
+  const firstName = DEMO_EMPLOYEE.name.split(' ')[0];
+
+  // Auto-ring on a high-risk (non-crisis) scenario when auto-call is on.
+  useEffect(() => {
+    if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+    setCallState('idle');
+    if (isHighRisk && autoCall) {
+      ringTimerRef.current = setTimeout(
+        () => setCallState('ringing'),
+        AUTO_CALL_DELAY_MS
+      );
+    }
+    return () => {
+      if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+    };
+  }, [selectedId, isHighRisk, autoCall]);
+
+  const handleReset = () => {
+    if (ringTimerRef.current) clearTimeout(ringTimerRef.current);
+    setSelectedId(null);
+    setCallState('idle');
+  };
+
+  const handleAnswer = () => {
+    if (!scenario) return;
+    saveRecoveryHandoffContext(scenario);
+    saveRecoveryContext(buildSessionContextFromScenario(scenario));
+    setCallState('idle');
+    router.push(`/user/recovery?source=trigger-demo&scenario=${scenario.id}`);
+  };
+
+  const handleDecline = () => setCallState('declined');
 
   return (
     <>
       <PageContainer className="pb-28 lg:pb-14">
         <SectionHeader
-          eyebrow="Employee demo"
-          title="Trigger Demo"
-          description="Simulate workplace, wearable, voice, and optional visible cues — then see how Amity merges signals into a private recovery session."
+          eyebrow="Demo tool"
+          title="Trigger Simulation"
+          description="Pick a workplace signal to see how Amity assesses it and prepares a private recovery session."
         />
 
         <Card variant="soft" className="mt-4">
           <CardContent className="flex flex-wrap items-center gap-2 py-3 text-sm text-[var(--amity-text-muted)]">
-            <span className="font-medium text-[var(--amity-text)]">Demo signal only</span>
+            <span className="font-medium text-[var(--amity-text)]">Demo signal</span>
             <span className="hidden sm:inline">·</span>
             <span>
-              MVP simulates trigger, voice, and facial-awareness pipelines into shared session
-              context. Real integrations require consent and are future scope.
+              These scenarios stand in for future workplace and wearable sources. Real
+              integrations are future scope.
             </span>
             <Badge variant="neutral" className="ml-auto shrink-0">
-              Future integration
+              Demo
             </Badge>
           </CardContent>
         </Card>
@@ -88,13 +137,83 @@ export default function TriggerDemoPage() {
             <EmotionalTwinPanel twin={twin} hasSelection={!!scenario} />
           </div>
 
-          {/* Right — risk, channels, actions (desktop) */}
+          {/* Right — risk, recovery call, channels, actions (desktop) */}
           <div className="space-y-4 lg:col-span-3">
             <RiskEnginePanel
               scenario={scenario}
               riskScore={twin.riskScore}
               statusType={statusType}
             />
+
+            {scenario && (
+              <Card variant="default">
+                <CardContent className="space-y-3">
+                  {isCrisis ? (
+                    <>
+                      <p className="text-sm font-medium text-[var(--amity-text)]">
+                        Amity response: Crisis safety flow recommended
+                      </p>
+                      <p className="text-xs text-[var(--amity-text-muted)]">
+                        Channel: Crisis support · normal coaching is paused
+                      </p>
+                      <ButtonLink
+                        href="/user/crisis"
+                        variant="danger"
+                        size="md"
+                        fullWidth
+                      >
+                        <ShieldAlert className="h-4 w-4" aria-hidden />
+                        Open Crisis Safety Flow
+                      </ButtonLink>
+                    </>
+                  ) : isHighRisk ? (
+                    <>
+                      <p className="text-sm font-medium text-[var(--amity-text)]">
+                        Amity response: Recovery call recommended
+                      </p>
+                      <p className="text-xs text-[var(--amity-text-muted)]">
+                        Amity can start a private in-app recovery call when a high-pressure
+                        signal is detected.
+                      </p>
+                      <Button
+                        variant="primary"
+                        size="md"
+                        fullWidth
+                        onClick={() => setCallState('ringing')}
+                      >
+                        <PhoneCall className="h-4 w-4" aria-hidden />
+                        Simulate incoming call
+                      </Button>
+                      <label className="flex items-center gap-2 text-xs text-[var(--amity-text-muted)]">
+                        <input
+                          type="checkbox"
+                          checked={autoCall}
+                          onChange={(e) => setAutoCall(e.target.checked)}
+                          className="h-4 w-4 rounded border-[var(--amity-border)] accent-[var(--amity-primary)]"
+                        />
+                        Auto-call on high-risk signal
+                      </label>
+                      {callState === 'declined' && (
+                        <p className="text-xs text-[var(--amity-text-muted)]">
+                          Recovery call dismissed. You can start recovery anytime.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-[var(--amity-text)]">
+                        Amity response: Recovery session available
+                      </p>
+                      <p className="text-xs text-[var(--amity-text-muted)]">
+                        This signal is within a supportive range — start a private recovery
+                        session whenever you are ready.
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <RecoveryChannelsPanel />
             <div className="hidden lg:block">
               <TriggerDemoActions scenario={scenario} onReset={handleReset} />
@@ -118,6 +237,15 @@ export default function TriggerDemoPage() {
 
       {/* Mobile sticky CTA */}
       <TriggerDemoActions scenario={scenario} onReset={handleReset} sticky />
+
+      <IncomingRecoveryCall
+        open={callState === 'ringing'}
+        scenario={scenario}
+        employeeName={firstName}
+        onAnswer={handleAnswer}
+        onDecline={handleDecline}
+        onOpenCrisis={() => setCallState('idle')}
+      />
     </>
   );
 }

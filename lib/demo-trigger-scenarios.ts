@@ -168,7 +168,7 @@ const RAW_SCENARIOS: ScenarioCore[] = [
       { label: 'Teams meeting ended', detail: 'Signal received' },
       { label: 'Stress signal increased', detail: '+62 from baseline' },
       { label: 'Heart rate crossed baseline', detail: '118 bpm' },
-      { label: 'Risk engine classified high pressure', detail: 'Score 94' },
+      { label: 'Risk decision: high pressure', detail: 'Score 94' },
       { label: 'Recovery session recommended', detail: 'Private reset' }
     ),
   },
@@ -257,7 +257,7 @@ const RAW_SCENARIOS: ScenarioCore[] = [
       { label: 'Upcoming event flagged', detail: 'T-minus 10 min' },
       { label: 'Wearable anxiety signal', detail: 'HRV drop' },
       { label: 'Heart rate rising', detail: '116 bpm' },
-      { label: 'Risk engine: high', detail: 'Pre-event pressure' },
+      { label: 'Risk decision: high', detail: 'Pre-event pressure' },
       { label: 'Quick reset recommended', detail: '5 min session' }
     ),
   },
@@ -379,7 +379,7 @@ const RAW_SCENARIOS: ScenarioCore[] = [
   },
   {
     id: 'future_video_signal',
-    name: 'Future Video Signal',
+    name: 'Video session safety signal',
     category: 'future_video_signal',
     source: 'bp_video_analysis',
     sourceLabel: 'BP video/audio analysis',

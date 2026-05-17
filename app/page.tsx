@@ -1,11 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import {
   ArrowRight,
   BarChart3,
   Building2,
   FileText,
-  HeartPulse,
   LayoutDashboard,
   Lock,
   Settings,
@@ -37,11 +37,11 @@ const adminCards = [
 ];
 
 const employeeCards = [
-  { icon: LayoutDashboard, title: 'My Dashboard', body: 'Your personal wellbeing state at a glance.', href: '/user/dashboard' },
-  { icon: Video, title: 'Recovery', body: 'A private AI video recovery session.', href: '/user/recovery' },
-  { icon: FileText, title: 'My Summary', body: 'Your private before/after recap.', href: '/user/summary' },
-  { icon: ShieldAlert, title: 'Crisis Support', body: 'Immediate safety options and human handoff.', href: '/user/crisis' },
-  { icon: UserCircle, title: 'Profile', body: 'Your details and recovery preferences.', href: '/user/profile' },
+  { icon: LayoutDashboard, title: 'My Dashboard', body: 'View your current wellbeing state.', href: '/user/dashboard' },
+  { icon: Video, title: 'Recovery', body: 'Start a private AI recovery session.', href: '/user/recovery' },
+  { icon: FileText, title: 'My Summary', body: 'Review your recent session recap.', href: '/user/summary' },
+  { icon: ShieldAlert, title: 'Crisis Support', body: 'Get immediate support options.', href: '/user/crisis' },
+  { icon: UserCircle, title: 'Profile', body: 'Manage personal preferences.', href: '/user/profile' },
 ];
 
 export default function HomePage() {
@@ -68,7 +68,7 @@ export default function HomePage() {
           <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-[var(--amity-text-muted)] sm:text-lg">
             {isAdmin
               ? 'Monitor privacy-safe wellbeing trends, recovery adoption, and team-level signals. You never see private recovery content.'
-              : 'Start a private reset, view your personal state, or open crisis support. Everything here is private to you.'}
+              : 'Start a private recovery session, check your personal state, or open crisis support. Everything here is private to you.'}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             {isAdmin ? (
@@ -78,16 +78,24 @@ export default function HomePage() {
               </ButtonLink>
             ) : (
               <>
-                <ButtonLink href="/user/trigger-demo" variant="primary" size="lg" fullWidth className="sm:w-auto">
-                  <HeartPulse className="h-4 w-4" aria-hidden />
-                  Start Trigger Demo
+                <ButtonLink href="/user/recovery" variant="primary" size="lg" fullWidth className="sm:w-auto">
+                  <Video className="h-4 w-4" aria-hidden />
+                  Start a Private Recovery Call
                 </ButtonLink>
                 <ButtonLink href="/user/dashboard" variant="secondary" size="lg" fullWidth className="sm:w-auto">
-                  Open My Dashboard
+                  View My Dashboard
                 </ButtonLink>
               </>
             )}
           </div>
+          {!isAdmin && (
+            <p className="mt-4 text-xs text-[var(--amity-text-muted)]">
+              <Link href="/user/trigger-demo" className="underline underline-offset-2 hover:text-[var(--amity-text)]">
+                Open trigger simulation
+              </Link>{' '}
+              — a demo tool that shows how Amity responds to workplace signals.
+            </p>
+          )}
           <p className="mt-6 text-xs text-[var(--amity-text-muted)]">
             {mounted
               ? `Viewing as ${identity.name} · ${isAdmin ? 'Company Admin' : 'Employee'} — switch role in the account menu`
@@ -136,8 +144,8 @@ export default function HomePage() {
             )}
             <p className="text-sm leading-relaxed text-[var(--amity-text-muted)]">
               {isAdmin
-                ? 'The employee Trigger Demo and recovery flow are personal features — admins understand triggers exist but never operate an employee’s recovery.'
-                : 'The Trigger Demo is your personal action. Your employer only ever sees anonymized, aggregated wellbeing signals.'}
+                ? 'Recovery sessions are personal and private — admins only ever see anonymized, aggregated wellbeing signals.'
+                : 'Your recovery sessions are private to you. Your employer only ever sees anonymized, aggregated wellbeing signals.'}
             </p>
           </CardContent>
         </Card>

@@ -66,10 +66,8 @@ export function ConversationPanel({
     : sending
       ? 'Amity is reading your session context…'
       : voiceStatus === 'ready'
-        ? 'Amity will speak the reply with ElevenLabs voice.'
-        : voiceStatus === 'mock_ready'
-          ? 'Add ELEVENLABS_API_KEY for spoken replies.'
-          : 'Type or speak to Amity.';
+        ? 'Amity will speak the reply aloud.'
+        : 'Type or speak to Amity.';
 
   return (
     <Card variant="default" className="flex flex-col">
@@ -90,10 +88,14 @@ export function ConversationPanel({
                       : 'danger'
                 }
               >
-                Gemini:{' '}
-                {geminiProvider === 'not_configured'
-                  ? 'not configured'
-                  : geminiProvider}
+                Recovery agent:{' '}
+                {geminiProvider === 'real'
+                  ? 'ready'
+                  : geminiProvider === 'safety'
+                    ? 'safety'
+                    : geminiProvider === 'not_configured'
+                      ? 'not configured'
+                      : 'quota reached'}
               </Badge>
             )}
             {voiceStatus && (
@@ -110,10 +112,12 @@ export function ConversationPanel({
               >
                 Voice:{' '}
                 {voiceStatus === 'ready'
-                  ? 'ElevenLabs'
+                  ? 'ready'
                   : voiceStatus === 'mock_ready'
                     ? 'not configured'
-                    : voiceStatus}
+                    : voiceStatus === 'disabled'
+                      ? 'not configured'
+                      : voiceStatus}
               </Badge>
             )}
           </div>
