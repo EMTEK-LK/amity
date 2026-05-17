@@ -32,6 +32,8 @@ const SPEAK_TOPIC = 'amity/speak';
 const RELEASE_DELAY_MS = 12_000;
 const AGENT_JOIN_TIMEOUT_MS = 45_000;
 const RECONNECT_DEBOUNCE_MS = 1_200;
+/** Avoid stacking multiple agent jobs on the same room (causes "AgentSession is not running"). */
+const REDISPATCH_COOLDOWN_MS = 90_000;
 
 interface CachedCredentials {
   livekitUrl: string;
@@ -56,6 +58,7 @@ interface SessionEntry {
   listeners: Set<Listener>;
   lastSpeakId: number;
   pendingSpeak: { text: string; requestId: number } | null;
+  lastAgentDispatchAt: number;
 }
 
 const sessions = new Map<string, SessionEntry>();
@@ -104,6 +107,7 @@ function getOrCreateEntry(sessionId: string): SessionEntry {
       listeners: new Set(),
       lastSpeakId: -1,
       pendingSpeak: null,
+      lastAgentDispatchAt: 0,
     };
     sessions.set(sessionId, entry);
   }
@@ -335,13 +339,23 @@ function hasLiveAgentWorker(room: Room): boolean {
   return false;
 }
 
+function hasBeyAvatarParticipant(room: Room): boolean {
+  for (const p of room.remoteParticipants.values()) {
+    if (isAvatarVideoParticipant(p.identity)) return true;
+  }
+  return false;
+}
+
 async function waitForRecoveryAgent(entry: SessionEntry): Promise<boolean> {
   const room = entry.room;
   if (!room) return false;
 
-  if (hasLiveAgentWorker(room)) {
+  if (hasLiveAgentWorker(room) || hasBeyAvatarParticipant(room)) {
     entry.agentReady = true;
     emit(entry);
+    if (hasBeyAvatarParticipant(room)) {
+      reattachExistingTracks(entry);
+    }
     return true;
   }
 
@@ -355,10 +369,13 @@ async function waitForRecoveryAgent(entry: SessionEntry): Promise<boolean> {
   while (Date.now() < deadline) {
     if (room.state !== 'connected') return false;
     await new Promise((r) => setTimeout(r, 500));
-    if (hasLiveAgentWorker(room)) {
+    if (hasLiveAgentWorker(room) || hasBeyAvatarParticipant(room)) {
       entry.agentReady = true;
       emit(entry);
       logRoomParticipants(entry, 'agent worker joined');
+      if (hasBeyAvatarParticipant(room)) {
+        reattachExistingTracks(entry);
+      }
       return true;
     }
   }
@@ -367,13 +384,20 @@ async function waitForRecoveryAgent(entry: SessionEntry): Promise<boolean> {
   entry.agentReady = false;
   emit(entry);
 
-  // Stale Bey may remain — force a fresh agent dispatch for the worker to join.
+  const now = Date.now();
+  if (now - entry.lastAgentDispatchAt < REDISPATCH_COOLDOWN_MS) {
+    recoveryDebugWarn('LiveKit', 'agent join timeout — redispatch skipped (cooldown)');
+    return false;
+  }
+
+  entry.lastAgentDispatchAt = now;
   try {
     await fetch('/api/recovery/avatar-livekit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sessionId: entry.sessionId, phase: 'connect' }),
     });
+    recoveryDebug('LiveKit', 'requested agent redispatch after timeout');
   } catch {
     /* retry on next speak */
   }
@@ -397,6 +421,9 @@ async function connectSessionInner(entry: SessionEntry): Promise<void> {
 
   try {
     const dispatchAgent = !entry.credentials;
+    if (dispatchAgent) {
+      entry.lastAgentDispatchAt = Date.now();
+    }
     if (!entry.credentials) {
       entry.credentials = await fetchCredentials(entry, dispatchAgent);
     } else {

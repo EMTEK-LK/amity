@@ -99,7 +99,7 @@ See `.env.example`. Required for lip-sync:
 | `LIVEKIT_API_KEY` | Server dispatch + tokens; agent worker |
 | `LIVEKIT_API_SECRET` | Server + agent worker |
 | `BEYOND_PRESENCE_API_KEY` | Agent worker Bey plugin |
-| `BEYOND_PRESENCE_AVATAR_ID` or `BEY_AVATAR_ID` | Bey avatar selection |
+| `BEYOND_PRESENCE_AVATAR_ID` or `BEY_AVATAR_ID` | Optional — custom avatar; if unset, Bey plugin uses its **stock** default |
 | `ELEVENLABS_API_KEY` | Agent worker TTS (+ server fallback if no LiveKit) |
 | `ELEVENLABS_VOICE_ID` | Agent TTS voice |
 | `AMITY_SKIP_SERVER_TTS` | `true` or auto when LiveKit set — skip API TTS |
@@ -126,6 +126,9 @@ Agent terminal (`npm run agent:dev`):
 | `registered worker` | Worker connected to LiveKit Cloud |
 | `joining room amity-...` | Job received — required for speech |
 | `speak received` / `speak start` / `speak done` | Full speak pipeline OK |
+| `speak failed` + `AgentSession is not running` | Session already closed (disconnect or duplicate job). Hard-refresh Recovery page; run only one agent worker |
+| `no BEYOND_PRESENCE_AVATAR_ID — using stock avatar` | Normal — not an error |
+| `joining room undefined` then quick shutdown | Second agent job raced the first — refresh page |
 
 Server terminal (`npm run dev`):
 

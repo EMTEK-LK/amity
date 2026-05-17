@@ -107,6 +107,11 @@ export default defineAgent({
 
     if (!elevenApiKey) console.error('[AmityRecovery] [agent] ELEVENLABS_API_KEY missing');
     if (!beyApiKey) console.error('[AmityRecovery] [agent] BEYOND_PRESENCE_API_KEY missing');
+    if (!avatarId) {
+      console.info(
+        '[AmityRecovery] [agent] no BEYOND_PRESENCE_AVATAR_ID — using Bey plugin stock avatar default'
+      );
+    }
 
     const tts = new elevenlabs.TTS({
       apiKey: elevenApiKey,
@@ -144,6 +149,8 @@ export default defineAgent({
       inputOptions: {
         audioEnabled: false,
         textEnabled: false,
+        // Keep TTS alive across brief browser reconnects / React remounts.
+        closeOnDisconnect: false,
       },
       outputOptions: {
         audioEnabled: false,
