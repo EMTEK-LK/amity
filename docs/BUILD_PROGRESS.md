@@ -4,8 +4,8 @@
 
 ## Current Status
 
-**Phase:** Step 8 — LiveKit + Beyond Presence lip-sync avatar  
-**Overall:** Recovery Room has unified camera/mic/chat, Gemini responses, ElevenLabs voice fallback, and lip-synced BP avatar via LiveKit Agents
+**Phase:** Step 8 + performance — LiveKit lip-sync, turn-based LLM, optimized `/api/agent/respond`  
+**Overall:** Recovery Room has unified camera/mic/chat, Gemini/OpenRouter coaching, agent-worker TTS + Bey lip-sync, ElevenLabs browser fallback only when needed
 
 ## Completed Tasks (Step 6A)
 
@@ -90,8 +90,20 @@ Open `/user/recovery` — requires `GEMINI_*` or `OPENROUTER_*`, `ELEVENLABS_*`,
 
 - Employee sessions are private; dashboard is aggregates only.
 - Bey video alone does **not** mean the agent worker is live — check for `joining room` in agent terminal.
-- Raw video/audio are not sent to the LLM — transcript + summarized facial cues only.
+- Raw video/audio are not sent to the LLM — transcript + summarized facial cues per **turn** only.
+- LLM is **not** the LiveKit agent worker — see `docs/LLM_AND_RECOVERY_PIPELINE.md`.
+- Gemini direct API 429 (credits depleted) → use OpenRouter or top up AI Studio billing.
+
+## Documentation index
+
+| Doc | Topic |
+|-----|--------|
+| `docs/LLM_AND_RECOVERY_PIPELINE.md` | Providers, prompt, turn model, latency, env |
+| `docs/RECOVERY_AVATAR.md` | LiveKit + Bey lip-sync |
+| `docs/FACIAL_AWARENESS.md` | face-api.js → LLM labels |
+| `docs/ARCHITECTURE.md` | System flow |
+| `docs/API_PLAN.md` | `/api/agent/respond` contract |
 
 ---
 
-*Last updated: Performance — faster `/api/agent/respond`*
+*Last updated: Docs sync — LLM pipeline, performance, architecture*

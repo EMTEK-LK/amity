@@ -71,6 +71,8 @@ Loaded from `../.env.local` then `../.env`:
 4. Browser publishes coaching lines on data topic `amity/speak`.
 5. Worker runs ElevenLabs TTS → Bey → `bey-avatar-agent` A/V tracks.
 
+**This worker does not call Gemini/OpenRouter.** Coaching text is produced by Next.js `POST /api/agent/respond` (`docs/LLM_AND_RECOVERY_PIPELINE.md`).
+
 See `docs/RECOVERY_AVATAR.md` for the full diagram.
 
 ## Troubleshooting

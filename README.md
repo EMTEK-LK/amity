@@ -21,13 +21,14 @@ Amity is **workplace wellbeing support** — not a medical or therapy product. I
 
 ## Current Build Status
 
-**Recovery Room (Step 8)** — unified live session with camera + mic, Web Speech transcript, and typed chat → **`POST /api/agent/respond`** (LLM + ElevenLabs fallback audio). When LiveKit is configured, a **lip-synced Beyond Presence avatar** plays in the large left panel via a local **agent worker** (`npm run agent:dev`). Coaching lines are sent to the worker on LiveKit data topic `amity/speak`; the worker runs ElevenLabs TTS through the Bey plugin. See **`docs/RECOVERY_AVATAR.md`** for the full pipeline.
+**Recovery Room (Step 8)** — unified live session with camera + mic, Web Speech transcript, and typed chat → **`POST /api/agent/respond`** (one turn = one LLM request; summarized context only). When LiveKit is configured, server **skips duplicate ElevenLabs TTS**; a **lip-synced Beyond Presence avatar** speaks via the local **agent worker** (`npm run agent:dev`) on data topic `amity/speak`. See **`docs/LLM_AND_RECOVERY_PIPELINE.md`** and **`docs/RECOVERY_AVATAR.md`**.
 
 | Feature | Status |
 |---------|--------|
-| LLM coaching | Gemini and/or OpenRouter (`AMITY_LLM_PROVIDER`) |
-| Voice fallback | ElevenLabs when lip-sync unavailable |
+| LLM coaching | Gemini + OpenRouter (`AMITY_LLM_PROVIDER`, auto-fallback on quota) |
+| Voice | Agent worker TTS (LiveKit); ElevenLabs server fallback when lip-sync off |
 | Lip-sync avatar | LiveKit + Bey (`agent-worker/`) |
+| Facial cues | Browser face-api.js → labels per turn (never raw video) |
 | Crisis safety | Text classifier → Crisis Safety Mode |
 | Admin dashboard | Aggregates only — no session transcripts |
 
@@ -98,7 +99,7 @@ Amity is a real-time **emotional recovery** platform (not medical, not therapy).
 
 ```
 User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Shared Session Context
-  → Risk + Safety → Recovery Orchestrator → Gemini + ElevenLabs + Beyond Presence
+  → Risk + Safety → POST /api/agent/respond (LLM turn) → LiveKit speak OR ElevenLabs fallback
   → Summary / Privacy-safe Analytics → Crisis Escalation (if needed)
 ```
 
@@ -107,8 +108,8 @@ User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Share
 | Pipeline | MVP | Future |
 |----------|-----|--------|
 | **Trigger** | `/user/trigger-demo` — 10 simulated scenarios (wearables, Teams, Slack, calendar, call center, manual, wake word, video/crisis) | Real integrations |
-| **Facial awareness** | Optional browser face-api.js → summarized cues in session context — **not diagnosis** | `public/models`, `lib/browser/face-awareness-client.ts` |
-| **Voice intelligence** | Mock voice state / transcript snapshot | Gemini Live + WebRTC |
+| **Facial awareness** | face-api.js ~1s locally → labels sent **per user message** to LLM — **not diagnosis** | `docs/FACIAL_AWARENESS.md` |
+| **Voice intelligence** | Web Speech → debounced turn → same `/api/agent/respond` route | Gemini Live (future) |
 
 ## Shared session context
 
@@ -136,9 +137,9 @@ User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Share
 | Consent gate | Mic + optional camera; facial awareness consent-based |
 | Avatar (large panel) | **LiveKit + Bey lip-sync** when configured; else coach stage + ElevenLabs |
 | Facial preview | Local face-api.js; summarized cues only — not sent raw to LLM |
-| Conversation | Text + Web Speech → `POST /api/agent/respond` |
-| LLM | Gemini and/or OpenRouter — requires API key |
-| Voice | ElevenLabs fallback; lip-sync audio from Bey when agent worker is live |
+| Conversation | Text + Web Speech (debounced chunks) → one API call per turn |
+| LLM | `buildRecoveryPrompt()` — Gemini and/or OpenRouter; see `docs/LLM_AND_RECOVERY_PIPELINE.md` |
+| Voice | Lip-sync via agent worker; server ElevenLabs only when LiveKit unavailable |
 | Agent worker | `npm run agent:dev` — **required** for lip-sync (see `agent-worker/README.md`) |
 | Crisis | Safety classifier on user text → `/user/crisis` |
 
@@ -162,7 +163,9 @@ lib/
   demo-recovery-responses.ts # Conversation + voice mode mapping
   recovery-session-bridge.ts # sessionStorage context from Trigger Demo
   demo-store.ts             # In-memory demo state
-  recovery-pipeline.ts      # LLM + voice + avatar per reply
+  recovery-pipeline.ts      # LLM + optional voice + avatar per reply
+  recovery-performance.ts   # Skip server TTS, token limits
+  recovery-llm-prompt.ts    # Amity persona + context for LLM
   livekit-avatar-session.ts # Browser LiveKit + speak
   livekit-agent-dispatch.ts # Agent worker dispatch
   gemini.ts | elevenlabs.ts | beyond-presence.ts
@@ -273,10 +276,17 @@ If you only see idle avatar video with no speech, the agent worker is not in the
 
 | Variable | Required for | Purpose |
 |----------|----------------|---------|
-| `GEMINI_API_KEY` | LLM (or use OpenRouter) | Coaching responses, safety |
-| `OPENROUTER_API_KEY` | LLM (optional) | Alternative LLM (`AMITY_LLM_PROVIDER`) |
-| `ELEVENLABS_API_KEY` | Voice | TTS fallback + agent worker TTS |
+| `AMITY_LLM_PROVIDER` | LLM | `auto` \| `gemini` \| `openrouter` |
+| `GEMINI_API_KEY` | LLM | Direct Gemini API |
+| `GEMINI_MODEL` | LLM | e.g. `gemini-2.0-flash` |
+| `OPENROUTER_API_KEY` | LLM backup | Used when provider is `openrouter` or Gemini quota fails |
+| `OPENROUTER_MODEL` | LLM | Prefer fast model (e.g. `google/gemini-2.0-flash-001`); avoid slow `openrouter/free` |
+| `AMITY_LLM_FALLBACK_FREE` | Optional | `true` = retry on `openrouter/free` (slow) |
+| `AMITY_LLM_MAX_TOKENS` | Optional | Cap coaching JSON size (default 220) |
+| `AMITY_SKIP_SERVER_TTS` | Optional | Skip API ElevenLabs when LiveKit speaks (auto if LiveKit set) |
+| `ELEVENLABS_API_KEY` | Voice | Agent worker TTS + server fallback |
 | `ELEVENLABS_VOICE_ID` | Voice | Same voice in API and agent |
+| `ELEVENLABS_MODEL` | Voice | Default `eleven_turbo_v2_5` for fallback path |
 | `BEYOND_PRESENCE_API_KEY` | Lip-sync | Bey plugin in agent worker |
 | `BEYOND_PRESENCE_AGENT_ID` | Config | Bey agent metadata |
 | `BEYOND_PRESENCE_AVATAR_ID` | Lip-sync | Avatar ID for Bey session |
@@ -304,7 +314,9 @@ If you only see idle avatar video with no speech, the agent worker is not in the
 | Doc | Contents |
 |-----|----------|
 | [`docs/BUILD_PROGRESS.md`](docs/BUILD_PROGRESS.md) | Task status and testing |
+| [`docs/LLM_AND_RECOVERY_PIPELINE.md`](docs/LLM_AND_RECOVERY_PIPELINE.md) | LLM providers, turn model, latency, env |
 | [`docs/RECOVERY_AVATAR.md`](docs/RECOVERY_AVATAR.md) | Lip-sync pipeline, debugging |
+| [`docs/FACIAL_AWARENESS.md`](docs/FACIAL_AWARENESS.md) | face-api.js, privacy, LLM labels |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture |
 | [`agent-worker/README.md`](agent-worker/README.md) | Agent worker setup |
 | [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) | 5–7 min demo script |
