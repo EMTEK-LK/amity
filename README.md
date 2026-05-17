@@ -8,19 +8,28 @@ Amity is **workplace wellbeing support** — not a medical or therapy product. I
 
 ## Tech Stack
 
-- Next.js (App Router)
+- Next.js 15 (App Router)
 - TypeScript
 - Tailwind CSS
 - Framer Motion
 - Recharts
 - Lucide React
-- Gemini API
-- ElevenLabs
-- Beyond Presence
+- Gemini / OpenRouter (LLM)
+- ElevenLabs (voice)
+- Beyond Presence + **LiveKit Agents** (lip-synced avatar)
+- LiveKit Cloud (WebRTC rooms)
 
 ## Current Build Status
 
-**Recovery Room (Step 6B)** — one **Start live recovery session** action requests camera + microphone together; local **face-api.js** + browser Web Speech transcript feed shared session context. Final speech segments **auto-send** to **`POST /api/agent/respond`** → **Gemini text only**; the typed chatbot is always available as fallback and uses the same route (`source: voice_transcript | typed_input`). **No mock fallback:** `GEMINI_API_KEY` is required; a missing key shows a clear setup error. ElevenLabs is **disabled until Step 7**. Large left panel = avatar output; the small camera signal is local facial awareness. Raw video/audio never sent — summarized cues only; the key stays server-side.
+**Recovery Room (Step 8)** — unified live session with camera + mic, Web Speech transcript, and typed chat → **`POST /api/agent/respond`** (LLM + ElevenLabs fallback audio). When LiveKit is configured, a **lip-synced Beyond Presence avatar** plays in the large left panel via a local **agent worker** (`npm run agent:dev`). Coaching lines are sent to the worker on LiveKit data topic `amity/speak`; the worker runs ElevenLabs TTS through the Bey plugin. See **`docs/RECOVERY_AVATAR.md`** for the full pipeline.
+
+| Feature | Status |
+|---------|--------|
+| LLM coaching | Gemini and/or OpenRouter (`AMITY_LLM_PROVIDER`) |
+| Voice fallback | ElevenLabs when lip-sync unavailable |
+| Lip-sync avatar | LiveKit + Bey (`agent-worker/`) |
+| Crisis safety | Text classifier → Crisis Safety Mode |
+| Admin dashboard | Aggregates only — no session transcripts |
 
 ## Role-Based Demo Architecture
 
@@ -81,7 +90,7 @@ Planned (not implemented): during a Beyond Presence recovery call, Amity will re
 
 Old routes redirect into the new structure: `/dashboard → /admin/dashboard`, `/trigger-portal → /user/trigger-demo`, `/recovery-room → /user/recovery`, `/crisis → /user/crisis`. `/summary` offers links to both the employee and company summaries.
 
-See `docs/BUILD_PROGRESS.md` and `docs/ARCHITECTURE.md` for live progress.
+See `docs/BUILD_PROGRESS.md`, `docs/ARCHITECTURE.md`, and `docs/RECOVERY_AVATAR.md` for details.
 
 ## Architecture
 
@@ -107,9 +116,9 @@ User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Share
 
 ## MVP vs future scope
 
-**MVP (buildathon):** simulated triggers, rule-based risk, shared context object, recovery/crisis UI placeholders, Gemini/ElevenLabs/BP safe placeholders, privacy-safe admin analytics.
+**MVP (buildathon):** simulated triggers, rule-based risk, shared context, LiveKit + Bey lip-sync via local agent worker, ElevenLabs fallback, privacy-safe admin analytics.
 
-**Future production:** face-api.js, Gemini Live streaming, WebRTC, real BP lip-sync, real wearables and workplace tools, production human handoff, enterprise privacy controls.
+**Future production:** hosted agent worker, Gemini Live streaming, real wearables and workplace tools, production human handoff, enterprise privacy controls.
 
 ## Privacy and safety
 
@@ -122,18 +131,18 @@ User Device → Consent Gate → [Trigger | Facial (optional) | Voice] → Share
 
 **Route:** `/user/recovery` (employee-only). Legacy `/recovery-room` redirects here.
 
-| Feature | MVP status |
-|---------|----------------|
+| Feature | Status |
+|---------|--------|
 | Consent gate | Mic + optional camera; facial awareness consent-based |
-| Avatar output (large panel) | Beyond Presence placeholder — **not** the local camera |
-| Facial preview (sidebar) | Local face-api.js; summarized cues in session context only |
-| Conversation | Text + Web Speech transcript → `POST /api/agent/respond` |
-| Gemini | `generateAmityRecoveryResponse()` — real Gemini; **no mock**, requires `GEMINI_API_KEY` (Step 6A) |
-| ElevenLabs | Disabled until Step 7 |
-| Crisis | Safety classifier on user text → crisis mode → `/user/crisis` (never from face alone) |
-| Context | Trigger Demo bridge + live facial/mic summaries |
+| Avatar (large panel) | **LiveKit + Bey lip-sync** when configured; else coach stage + ElevenLabs |
+| Facial preview | Local face-api.js; summarized cues only — not sent raw to LLM |
+| Conversation | Text + Web Speech → `POST /api/agent/respond` |
+| LLM | Gemini and/or OpenRouter — requires API key |
+| Voice | ElevenLabs fallback; lip-sync audio from Bey when agent worker is live |
+| Agent worker | `npm run agent:dev` — **required** for lip-sync (see `agent-worker/README.md`) |
+| Crisis | Safety classifier on user text → `/user/crisis` |
 
-**Future:** Gemini Live via secure WebSocket relay — see `docs/GEMINI_LIVE_PLAN.md`.
+**Architecture:** `docs/RECOVERY_AVATAR.md` · **Progress:** `docs/BUILD_PROGRESS.md`
 
 ## Folder structure (core lib)
 
@@ -153,7 +162,11 @@ lib/
   demo-recovery-responses.ts # Conversation + voice mode mapping
   recovery-session-bridge.ts # sessionStorage context from Trigger Demo
   demo-store.ts             # In-memory demo state
-  gemini.ts | elevenlabs.ts | beyond-presence.ts  # Layer placeholders
+  recovery-pipeline.ts      # LLM + voice + avatar per reply
+  livekit-avatar-session.ts # Browser LiveKit + speak
+  livekit-agent-dispatch.ts # Agent worker dispatch
+  gemini.ts | elevenlabs.ts | beyond-presence.ts
+agent-worker/main.ts        # LiveKit agent (Bey lip-sync)
 components/recovery/        # Recovery Room UI panels
 types/
   consent.ts | session-context.ts | facial-awareness.ts | voice.ts | analytics.ts
@@ -212,51 +225,100 @@ Step 3 added **design foundations only** — not feature pages or API logic.
 
 ## Setup Instructions
 
+### 1. Install dependencies
+
 ```bash
 npm install
-npm run dev
+npm run agent:install   # once — installs agent-worker packages
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
-
-## Environment Variables
-
-Copy the example file to `.env.local`:
+### 2. Environment
 
 ```bash
 cp .env.example .env.local
 ```
 
-| Variable | Purpose |
-|----------|---------|
-| `GEMINI_API_KEY` | Emotional reasoning, responses, safety, summaries |
-| `ELEVENLABS_API_KEY` | Natural recovery voice synthesis |
-| `ELEVENLABS_VOICE_ID` | ElevenLabs voice selection |
-| `BEYOND_PRESENCE_API_KEY` | Video avatar recovery room |
-| `BEYOND_PRESENCE_AGENT_ID` | Beyond Presence agent configuration |
-| `NEXT_PUBLIC_APP_URL` | App base URL (default `http://localhost:3000`) |
+Fill in keys (see table below). The agent worker reads the same `/.env.local` at the repo root.
 
-API keys can remain empty for early UI-only development steps.
+### 3. Run the app
 
-## Development Steps
-
-1. Foundation — docs, rules, placeholders
-2. Next.js app shell + design system
-3. Role-based admin/employee UI + Trigger Demo console
-4. **Architecture — shared context, pipelines, orchestrator** *(current)*
-5. Recovery Room UI (consent gate, BP placeholder, context panel, Gemini/ElevenLabs placeholders)
-6. Gemini / ElevenLabs / Beyond Presence real integrations
-7. API routes + demo store wiring
-8. Landing page polish
-9. Deploy and pitch
-
-## Useful Commands
+**Recovery Room with lip-sync requires two processes:**
 
 ```bash
-npm run dev    # Start development server
-npm run lint   # Run ESLint
-npm run build  # Production build
+# Terminal 1 — Next.js
+npm run dev
+
+# Terminal 2 — LiveKit agent (Bey lip-sync)
+npm run agent:dev
 ```
+
+**Or one command:**
+
+```bash
+npm run recovery:dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) → Employee → **Recovery** (or `/user/recovery`).
+
+### 4. Verify lip-sync
+
+1. Accept consent and start the live session.
+2. Send a chat message.
+3. **Agent terminal** should log: `joining room` → `speak start` → `speak done`.
+4. **Browser** badge: **Lip-sync live**; avatar speaks with synced mouth movement.
+
+If you only see idle avatar video with no speech, the agent worker is not in the room — restart `npm run agent:dev`. See **`agent-worker/README.md`** troubleshooting.
+
+## Environment Variables
+
+| Variable | Required for | Purpose |
+|----------|----------------|---------|
+| `GEMINI_API_KEY` | LLM (or use OpenRouter) | Coaching responses, safety |
+| `OPENROUTER_API_KEY` | LLM (optional) | Alternative LLM (`AMITY_LLM_PROVIDER`) |
+| `ELEVENLABS_API_KEY` | Voice | TTS fallback + agent worker TTS |
+| `ELEVENLABS_VOICE_ID` | Voice | Same voice in API and agent |
+| `BEYOND_PRESENCE_API_KEY` | Lip-sync | Bey plugin in agent worker |
+| `BEYOND_PRESENCE_AGENT_ID` | Config | Bey agent metadata |
+| `BEYOND_PRESENCE_AVATAR_ID` | Lip-sync | Avatar ID for Bey session |
+| `LIVEKIT_URL` | Lip-sync | LiveKit Cloud WebSocket URL |
+| `LIVEKIT_API_KEY` | Lip-sync | Server + agent worker |
+| `LIVEKIT_API_SECRET` | Lip-sync | Server + agent worker |
+| `NEXT_PUBLIC_APP_URL` | App | Base URL (default `http://localhost:3000`) |
+| `BEYOND_PRESENCE_EMBED_IFRAME` | Optional | `true` = full Bey iframe instead of LiveKit mode |
+
+## NPM Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Next.js development server |
+| `npm run build` | Production build |
+| `npm run start` | Production server |
+| `npm run lint` | ESLint |
+| `npm run agent:install` | Install `agent-worker` dependencies |
+| `npm run agent:dev` | LiveKit agent worker (lip-sync) |
+| `npm run agent:start` | Agent worker production mode |
+| `npm run recovery:dev` | `dev` + `agent:dev` together |
+
+## Documentation
+
+| Doc | Contents |
+|-----|----------|
+| [`docs/BUILD_PROGRESS.md`](docs/BUILD_PROGRESS.md) | Task status and testing |
+| [`docs/RECOVERY_AVATAR.md`](docs/RECOVERY_AVATAR.md) | Lip-sync pipeline, debugging |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture |
+| [`agent-worker/README.md`](agent-worker/README.md) | Agent worker setup |
+| [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) | 5–7 min demo script |
+
+## Development milestones
+
+1. Foundation — docs, rules, design system
+2. Role-based admin/employee UI + Trigger Demo
+3. Shared context, orchestrator, risk engine
+4. Recovery Room UI + consent + media session
+5. LLM integration (Gemini / OpenRouter)
+6. ElevenLabs voice + recovery pipeline
+7. **LiveKit + Beyond Presence lip-sync** *(current)*
+8. Deploy and pitch
 
 ## Demo Scope
 

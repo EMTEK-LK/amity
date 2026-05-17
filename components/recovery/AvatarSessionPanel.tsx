@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import { LiveKitAvatarVideo } from '@/components/recovery/LiveKitAvatarVideo';
 import type { AgentAvatarDisplayMode } from '@/types/agent';
+import type { RecoverySpeakRequest } from '@/types/recovery-speak';
 import type { AvatarStatus } from '@/types/recovery-room';
 
 interface AvatarSessionPanelProps {
@@ -23,7 +24,8 @@ interface AvatarSessionPanelProps {
   agentName?: string | null;
   avatarPlaceholder?: boolean;
   audioUrl?: string | null;
-  speakText?: string | null;
+  speakRequest?: RecoverySpeakRequest | null;
+  onLipSyncUnavailable?: () => void;
   isSpeaking?: boolean;
 }
 
@@ -47,7 +49,8 @@ export function AvatarSessionPanel({
   agentName,
   avatarPlaceholder = true,
   audioUrl,
-  speakText,
+  speakRequest,
+  onLipSyncUnavailable,
   isSpeaking = false,
 }: AvatarSessionPanelProps) {
   const mm = String(Math.floor(elapsedSeconds / 60)).padStart(2, '0');
@@ -103,9 +106,10 @@ export function AvatarSessionPanel({
           <LiveKitAvatarVideo
             sessionId={sessionId}
             sessionActive={sessionActive}
-            speakText={speakText}
+            speakRequest={speakRequest}
             status={status}
             coachLabel={coachLabel}
+            onLipSyncUnavailable={onLipSyncUnavailable}
           />
         ) : showIframe ? (
           <iframe

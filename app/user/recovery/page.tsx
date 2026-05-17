@@ -23,11 +23,16 @@ import {
 import { RecoveryAgentError, sendRecoveryAgentMessage } from '@/lib/client/recovery-agent';
 import { mergeConsent, saveStoredConsent } from '@/lib/consent-manager';
 import { createVoiceSessionSnapshot } from '@/lib/voice-session';
+import type { RecoverySpeakRequest } from '@/types/recovery-speak';
 import type { RecoveryModeId } from '@/lib/demo-recovery-responses';
 import { loadRecoveryContext, saveRecoveryContext } from '@/lib/recovery-session-bridge';
 import { prepareRecoverySession } from '@/lib/recovery-orchestrator';
 import { unlockAudioPlayback } from '@/lib/unlock-audio-playback';
 import { recoveryDebug } from '@/lib/recovery-debug';
+import {
+  retainLiveKitAvatarSession,
+  subscribeLiveKitAvatarSession,
+} from '@/lib/livekit-avatar-session';
 import { prepareCrisisEscalation } from '@/lib/crisis-escalation';
 import { updateContextFromFacialSignal, updateContextFromVoiceSignal } from '@/lib/session-context';
 import type {
@@ -88,7 +93,10 @@ export default function RecoveryPage() {
   const [geminiPreview, setGeminiPreview] = useState<Record<string, unknown> | null>(null);
   const [voiceOutput, setVoiceOutput] = useState<AgentVoiceOutput | null>(null);
   const [avatarOutput, setAvatarOutput] = useState<AgentAvatarOutput | null>(null);
-  const [agentSpeakText, setAgentSpeakText] = useState<string | null>(null);
+  const [speakRequest, setSpeakRequest] = useState<RecoverySpeakRequest | null>(null);
+  const [lipSyncFallbackVoice, setLipSyncFallbackVoice] = useState(false);
+  const speakRequestCounterRef = useRef(0);
+  const liveKitWasConnectedRef = useRef(false);
 
   const crisis = safetyState === 'crisis' || session.sessionState === 'crisis';
   const lastAutoSentRef = useRef<{ text: string; at: number }>({ text: '', at: 0 });
@@ -96,13 +104,50 @@ export default function RecoveryPage() {
   const liveKitAvatar =
     avatarOutput?.displayMode === 'livekit' && avatarOutput?.placeholder === false;
 
-  // LiveKit + Bey: hear lip-synced audio from bey-avatar-agent (not duplicate ElevenLabs).
+  const onLipSyncUnavailable = useCallback(() => {
+    recoveryDebug('RecoveryPage', 'lip-sync unavailable — playing ElevenLabs fallback');
+    setLipSyncFallbackVoice(true);
+  }, []);
+
+  const wantsLiveKit =
+    avatarOutput?.displayMode === 'livekit' && avatarOutput?.placeholder === false;
+
+  // One LiveKit room for the whole session — not tied to child component mount/unmount.
+  useEffect(() => {
+    if (!consentAccepted || paused || !wantsLiveKit) return;
+
+    const release = retainLiveKitAvatarSession(context.sessionId);
+    const unsub = subscribeLiveKitAvatarSession(context.sessionId, (snap) => {
+      if (snap.status === 'connected' || snap.status === 'streaming') {
+        liveKitWasConnectedRef.current = true;
+      }
+      // Lip-sync is live — do not also play local ElevenLabs.
+      if (snap.agentReady && (snap.status === 'streaming' || snap.videoAttached)) {
+        setLipSyncFallbackVoice(false);
+      }
+      if (
+        liveKitWasConnectedRef.current &&
+        (snap.status === 'connecting' || snap.status === 'error')
+      ) {
+        recoveryDebug('RecoveryPage', 'LiveKit dropped — enabling voice fallback');
+        setLipSyncFallbackVoice(true);
+      }
+    });
+
+    return () => {
+      unsub();
+      release();
+      liveKitWasConnectedRef.current = false;
+    };
+  }, [consentAccepted, paused, wantsLiveKit, context.sessionId]);
+
+  // LiveKit: lip-sync only; ElevenLabs only when explicit fallback (agent down / publish failed).
   useRecoveryVoicePlayback(
     voiceOutput?.audioUrl,
     consentAccepted &&
       !paused &&
       voiceOutput?.status === 'ready' &&
-      !liveKitAvatar
+      (!liveKitAvatar || lipSyncFallbackVoice)
   );
 
   useEffect(() => {
@@ -244,7 +289,14 @@ export default function RecoveryPage() {
 
         const assistantText = formatAssistantMessage(result.response, result.nextQuestion);
         const speakLine = [result.response, result.nextQuestion].filter(Boolean).join(' ').trim();
-        if (speakLine) setAgentSpeakText(speakLine);
+        if (speakLine) {
+          speakRequestCounterRef.current += 1;
+          setLipSyncFallbackVoice(false);
+          setSpeakRequest({
+            id: speakRequestCounterRef.current,
+            text: speakLine,
+          });
+        }
 
         if (result.crisis) {
           activateCrisis(ctx, assistantText);
@@ -379,7 +431,8 @@ export default function RecoveryPage() {
     setGeminiPreview(null);
     setVoiceOutput(null);
     setAvatarOutput(null);
-    setAgentSpeakText(null);
+    setSpeakRequest(null);
+    setLipSyncFallbackVoice(false);
     session.stopSession();
   };
 
@@ -444,7 +497,8 @@ export default function RecoveryPage() {
             agentName={avatarOutput?.agentName}
             avatarPlaceholder={avatarOutput?.placeholder ?? true}
             audioUrl={voiceOutput?.audioUrl}
-            speakText={agentSpeakText}
+            speakRequest={speakRequest}
+            onLipSyncUnavailable={onLipSyncUnavailable}
             isSpeaking={voiceOutput?.status === 'ready'}
           />
           <QuickModeButtons

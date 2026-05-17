@@ -6,15 +6,16 @@ import { Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { useLiveKitAvatar } from '@/hooks/useLiveKitAvatar';
 import { cn } from '@/lib/utils';
+import type { RecoverySpeakRequest } from '@/types/recovery-speak';
 import type { AvatarStatus } from '@/types/recovery-room';
 
 interface LiveKitAvatarVideoProps {
   sessionId: string;
   sessionActive: boolean;
-  /** Coaching line for the agent worker (ElevenLabs TTS + Bey lip-sync). */
-  speakText?: string | null;
+  speakRequest?: RecoverySpeakRequest | null;
   status: AvatarStatus;
   coachLabel: string;
+  onLipSyncUnavailable?: () => void;
 }
 
 const LIVEKIT_STATUS: Record<string, string> = {
@@ -29,21 +30,34 @@ const LIVEKIT_STATUS: Record<string, string> = {
 export function LiveKitAvatarVideo({
   sessionId,
   sessionActive,
-  speakText,
+  speakRequest,
   status,
   coachLabel,
+  onLipSyncUnavailable,
 }: LiveKitAvatarVideoProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const livekit = useLiveKitAvatar(sessionId, sessionActive);
+  const handledSpeakIdRef = useRef(-1);
+  const onFallbackRef = useRef(onLipSyncUnavailable);
+  onFallbackRef.current = onLipSyncUnavailable;
 
   useEffect(() => {
     livekit.attachVideo(videoRef.current);
   }, [livekit.attachVideo]);
 
+  const speakId = speakRequest?.id ?? -1;
+  const speakText = speakRequest?.text?.trim() ?? '';
+
   useEffect(() => {
-    if (!speakText?.trim() || !sessionActive) return;
-    void livekit.publishSpeakText(speakText);
-  }, [speakText, sessionActive, livekit.publishSpeakText]);
+    if (!sessionActive || !speakText || speakId < 0) return;
+    if (speakId === handledSpeakIdRef.current) return;
+
+    void (async () => {
+      const ok = await livekit.publishSpeakText(speakText, speakId);
+      handledSpeakIdRef.current = speakId;
+      if (!ok) onFallbackRef.current?.();
+    })();
+  }, [speakId, speakText, sessionActive, livekit.publishSpeakText]);
 
   const showVideo = livekit.videoAttached;
   const pulse = livekit.status === 'streaming' || status === 'responding';
@@ -60,7 +74,6 @@ export function LiveKitAvatarVideo({
         autoPlay
         muted={false}
       />
-      {/* Lip-synced audio plays from bey-avatar-agent track (not local ElevenLabs). */}
 
       {!showVideo ? (
         <motion.div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
@@ -68,8 +81,8 @@ export function LiveKitAvatarVideo({
             <>
               <p className="text-sm text-[var(--amity-danger)]">{livekit.error}</p>
               <p className="text-xs text-[var(--amity-text-muted)]">
-                Run <code className="rounded bg-black/20 px-1">npm run agent:dev</code> in a second
-                terminal. Voice in chat still works via ElevenLabs.
+                Run <code className="rounded bg-black/20 px-1">npm run agent:dev</code> in a
+                second terminal. ElevenLabs voice will still play as fallback.
               </p>
             </>
           ) : (
@@ -93,13 +106,15 @@ export function LiveKitAvatarVideo({
         />
       ) : null}
 
-      <div className="absolute bottom-3 left-3 z-10">
+      <motion.div className="absolute bottom-3 left-3 z-10">
         <Badge variant={livekit.status === 'error' ? 'danger' : 'primary'}>
           {livekit.videoAttached
             ? 'Lip-sync live'
-            : LIVEKIT_STATUS[livekit.status] ?? livekit.status}
+            : livekit.agentReady
+              ? 'Agent ready'
+              : LIVEKIT_STATUS[livekit.status] ?? livekit.status}
         </Badge>
-      </div>
+      </motion.div>
     </motion.div>
   );
 }

@@ -31,14 +31,17 @@
 
 > "Amity opens a private video recovery room — not therapy, a workplace emotional reset with a recovery companion."
 
+**Before demo:** run `npm run dev` and `npm run agent:dev` (or `npm run recovery:dev`). Lip-sync requires the agent worker.
+
 - Open **Recovery Room** (`/user/recovery`) from Trigger Demo
-- Accept consent → **Start live recovery session** (one action: camera + mic together)
-- **Large left** = avatar output; **small** = local facial awareness signal (if camera on)
-- Requires `GEMINI_API_KEY` in `.env.local` (no mock — without a key the panel shows a clear setup error)
-- Speak naturally → final transcript **auto-sends** → **Gemini text response** (badge: Gemini real; voice disabled until Step 7)
-- Or just type in the chatbot — same Gemini route; works even if camera/mic are off
-- Open **Gemini context preview** to show judges the message source + summarized face + transcript payload
-- Try “I am not safe right now” → crisis (from text, not face) → Open Crisis Safety Flow
+- Accept consent → **Start live recovery session** (camera + mic together)
+- **Large left** = lip-synced Beyond Presence avatar (LiveKit); badge **Lip-sync live**
+- Requires LLM + LiveKit + Bey keys in `.env.local` (see README)
+- Type or speak → Gemini/OpenRouter reply → avatar **speaks with lip-sync**
+- Open **Gemini context preview** for message source + facial + transcript payload
+- Try “I am not safe right now” → crisis (from text, not face) → Crisis Safety Flow
+
+**Judge talking point:** Amity LLM writes the words; ElevenLabs + Bey deliver voice and video — employee sessions stay private; company dashboard sees aggregates only.
 
 ## Act 4 — Summary (45s)
 

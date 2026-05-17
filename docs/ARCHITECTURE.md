@@ -12,20 +12,41 @@ User Device
   → Shared Session Context
   → Risk + Safety Engine
   → Recovery Orchestrator
-       → Gemini Response Layer
-       → ElevenLabs Voice Layer
-       → Beyond Presence Avatar Interface
+       → LLM Response Layer (Gemini / OpenRouter)
+       → ElevenLabs Voice Layer (fallback + agent TTS)
+       → Beyond Presence Avatar (LiveKit Agents + Bey lip-sync)
   → Recovery Summary + Privacy-safe Analytics
   → Crisis Escalation (if needed)
 ```
+
+## Recovery Room avatar pipeline (current)
+
+When `LIVEKIT_URL` is set:
+
+```
+POST /api/agent/respond
+  → LLM text + ElevenLabs audioUrl (fallback)
+
+POST /api/recovery/avatar-livekit?phase=connect
+  → room token + dispatch amity-recovery-agent
+
+Browser (livekit-client)
+  → subscribe bey-avatar-agent video + audio
+  → publishData topic amity/speak { text, requestId }
+
+agent-worker (amity-recovery-agent)
+  → ElevenLabs TTS → Bey AvatarSession → lip-synced A/V
+```
+
+Full detail: **`docs/RECOVERY_AVATAR.md`**.
 
 ## Parallel pipelines
 
 | Pipeline | MVP | Future production |
 |----------|-----|-------------------|
 | **Trigger** | `/user/trigger-demo` simulates wearables, Teams, Slack, calendar, call center, manual, wake word, video/crisis classifier | Real integrations |
-| **Facial awareness** | Mock broad expression cues when consented | face-api.js in browser |
-| **Voice** | Mock voice state + transcript snapshot | Gemini Live + WebRTC |
+| **Facial awareness** | face-api.js in browser when consented | Refined cues, on-device only |
+| **Voice** | Web Speech transcript + ElevenLabs; lip-sync via agent worker | Gemini Live + WebRTC |
 
 Pipelines merge into **`SharedSessionContext`** (`types/session-context.ts`, `lib/session-context.ts`).
 
@@ -35,7 +56,9 @@ Single object per recovery session: vitals, emotion, voice state, optional facia
 
 ## Recovery orchestrator
 
-`lib/recovery-orchestrator.ts` → `prepareRecoverySession()` returns plan for Gemini context, ElevenLabs voice mode, BP avatar mode, and `nextRoute`.
+`lib/recovery-orchestrator.ts` → `prepareRecoverySession()` returns plan for LLM context, ElevenLabs voice mode, BP avatar mode, and `nextRoute`.
+
+`lib/recovery-pipeline.ts` runs LLM + ElevenLabs + `getBeyondPresenceConfig()` for each agent reply.
 
 ## Crisis escalation
 
@@ -54,13 +77,18 @@ Single object per recovery session: vitals, emotion, voice state, optional facia
 |------|---------|
 | `lib/session-context.ts` | Context create/update from trigger, facial, voice |
 | `lib/consent-manager.ts` | Consent defaults and gates |
-| `lib/facial-awareness.ts` | Optional expression cues (not diagnosis) |
-| `lib/voice-session.ts` | Voice pipeline placeholder |
+| `lib/recovery-pipeline.ts` | LLM + voice + avatar config per reply |
+| `lib/livekit-avatar-session.ts` | Browser LiveKit session + speak |
+| `lib/livekit-agent-dispatch.ts` | Agent worker dispatch + stale cleanup |
+| `lib/livekit-room.ts` | Room + participant JWT |
+| `agent-worker/main.ts` | LiveKit agent: Bey lip-sync + TTS |
+| `lib/gemini.ts` / `lib/elevenlabs.ts` / `lib/beyond-presence.ts` | Provider integrations |
 | `lib/risk-engine.ts` | Rule-based risk + crisis detection |
-| `lib/recovery-orchestrator.ts` | Layer preparation |
 | `lib/crisis-escalation.ts` | Crisis plan |
 | `lib/demo-trigger-scenarios.ts` | 10 demo scenarios + payloads |
 
 ## MVP vs future
 
-See `README.md` § MVP vs Future Scope.
+**MVP:** simulated triggers, rule-based risk, LiveKit + Bey lip-sync via local agent worker, ElevenLabs fallback, privacy-safe admin analytics.
+
+**Future:** hosted agent worker, Gemini Live streaming, real wearables/workplace tools, production human handoff.

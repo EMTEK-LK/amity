@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   publishLiveKitAvatarSpeak,
-  retainLiveKitAvatarSession,
   setLiveKitAvatarVideoElement,
   subscribeLiveKitAvatarSession,
   type LiveKitAvatarSnapshot,
@@ -14,28 +13,21 @@ export type { LiveKitAvatarStatus };
 
 export interface UseLiveKitAvatarResult extends LiveKitAvatarSnapshot {
   attachVideo: (element: HTMLVideoElement | null) => void;
-  publishSpeakText: (text: string) => Promise<void>;
-  disconnect: () => void;
+  publishSpeakText: (text: string, requestId: number) => Promise<boolean>;
 }
 
-export function useLiveKitAvatar(
-  sessionId: string,
-  enabled: boolean
-): UseLiveKitAvatarResult {
+/** Subscribe to LiveKit avatar state. Call retainLiveKitAvatarSession at page level — not here. */
+export function useLiveKitAvatar(sessionId: string, enabled: boolean): UseLiveKitAvatarResult {
   const [snapshot, setSnapshot] = useState<LiveKitAvatarSnapshot>({
     status: 'idle',
     error: null,
     videoAttached: false,
+    agentReady: false,
   });
 
   useEffect(() => {
     if (!enabled) return;
-    const release = retainLiveKitAvatarSession(sessionId);
-    const unsubscribe = subscribeLiveKitAvatarSession(sessionId, setSnapshot);
-    return () => {
-      unsubscribe();
-      release();
-    };
+    return subscribeLiveKitAvatarSession(sessionId, setSnapshot);
   }, [enabled, sessionId]);
 
   const attachVideo = useCallback(
@@ -46,9 +38,9 @@ export function useLiveKitAvatar(
   );
 
   const publishSpeakText = useCallback(
-    async (text: string) => {
-      if (!enabled) return;
-      publishLiveKitAvatarSpeak(sessionId, text);
+    async (text: string, requestId: number) => {
+      if (!enabled) return false;
+      return publishLiveKitAvatarSpeak(sessionId, text, requestId);
     },
     [enabled, sessionId]
   );
@@ -57,6 +49,5 @@ export function useLiveKitAvatar(
     ...snapshot,
     attachVideo,
     publishSpeakText,
-    disconnect: () => undefined,
   };
 }
