@@ -123,6 +123,13 @@ Work **one task at a time**. Update `docs/BUILD_PROGRESS.md` after each.
 - [ ] Vercel deploy
 - [ ] README with env setup
 
+## Phase 11 — Buildathon submission ✅
+
+- [x] `docs/CURSOR_BUILDATHON_SUBMISSION.md` drafted (12 required sections)
+- [x] MVP vs future scope reconciled honestly (voice/avatar configuration-gated)
+- [ ] Fill team names, demo URL, repo URL
+- [ ] Final read-through and submit
+
 ## Rules for every task
 
 1. Small, focused diff

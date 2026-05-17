@@ -91,6 +91,7 @@ Planned (not implemented): during a Beyond Presence recovery call, Amity will re
 Old routes redirect into the new structure: `/dashboard → /admin/dashboard`, `/trigger-portal → /user/trigger-demo`, `/recovery-room → /user/recovery`, `/crisis → /user/crisis`. `/summary` offers links to both the employee and company summaries.
 
 See `docs/BUILD_PROGRESS.md`, `docs/ARCHITECTURE.md`, and `docs/RECOVERY_AVATAR.md` for details.
+The official Cursor Buildathon submission write-up is `docs/CURSOR_BUILDATHON_SUBMISSION.md`.
 
 ## Architecture
 

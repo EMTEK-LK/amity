@@ -42,8 +42,20 @@
 - [x] Request ID dedupe (browser + agent) — single speak per reply
 - [x] Docs: `docs/RECOVERY_AVATAR.md`, README, agent-worker README
 
+## Completed Tasks (Buildathon Submission)
+
+- [x] Cursor Buildathon submission document drafted (`docs/CURSOR_BUILDATHON_SUBMISSION.md`)
+- [x] Existing Amity docs reviewed and consolidated
+- [x] MVP vs future scope clarified (voice/avatar = configuration-gated, honestly scoped)
+- [x] Architecture, functional/non-functional requirements, security, market, and business model documented
+
+## Current Status
+
+- Submission document ready for review
+
 ## Next Task
 
+- [ ] Review team details, demo URL, repo URL, and final submission copy
 - [ ] Production deploy checklist (env vars, agent worker hosting)
 - [ ] Optional: reduce `/api/agent/respond` latency (stream text before TTS)
 - [ ] Gemini Live streaming (see `docs/GEMINI_LIVE_PLAN.md`)
